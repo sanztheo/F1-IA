@@ -39,5 +39,5 @@ def simulate_lap(
     with np.errstate(divide="ignore"):
         dt = np.where(v > 1e-3, ds / v, 0.0)
     T = float(np.sum(dt))
-    return {"time_s": T, "v": v, "ds": ds}
-
+    t_cum = np.cumsum(dt)
+    return {"time_s": T, "v": v, "ds": ds, "dt": dt, "t": t_cum}

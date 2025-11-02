@@ -114,6 +114,54 @@ def main():
             v_ref_lim = speed_profile_from_curvature(kappa_ref, mu)
             sim_ref = simulate_lap(center, kappa_ref, v_ref_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
 
+        # Animation controls
+        st.subheader("Simulation animée")
+        colA, colB, colC, colD = st.columns([1,1,2,2])
+        T_max = float(max(sim.get("t", [sim["time_s"]])[-1], sim_ref.get("t", [sim_ref["time_s"]])[-1]))
+        if "sim_state" not in st.session_state:
+            st.session_state.sim_state = {"t": 0.0, "playing": False, "speed": 1.0}
+        with colA:
+            if st.button("▶ Play" if not st.session_state.sim_state["playing"] else "⏸ Pause"):
+                st.session_state.sim_state["playing"] = not st.session_state.sim_state["playing"]
+        with colB:
+            if st.button("⏹ Reset"):
+                st.session_state.sim_state["t"] = 0.0
+                st.session_state.sim_state["playing"] = False
+        with colC:
+            speed = st.select_slider("Vitesse", options=[0.25, 0.5, 1.0, 2.0, 4.0], value=st.session_state.sim_state["speed"])
+            st.session_state.sim_state["speed"] = speed
+        with colD:
+            t_val = st.slider("Temps (s)", min_value=0.0, max_value=T_max, value=float(st.session_state.sim_state["t"]), step=max(T_max/1000.0, 0.05))
+            st.session_state.sim_state["t"] = float(t_val)
+
+        # Compute positions for current time
+        def _idx(tarr, t):
+            import numpy as np
+            return int(np.clip(np.searchsorted(tarr, t, side="right") - 1, 0, len(tarr)-1))
+
+        t_ia = sim.get("t")
+        t_rf = sim_ref.get("t")
+        i_ia = _idx(t_ia, st.session_state.sim_state["t"]) if t_ia is not None else len(line)-1
+        i_rf = _idx(t_rf, st.session_state.sim_state["t"]) if t_rf is not None else len(center)-1
+
+        # Plot with moving markers
+        st.subheader("Trajectoire sur le circuit")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=center[:, 0], y=center[:, 1], name="Centerline", mode="lines", line=dict(color="#888", width=2)))
+        fig.add_trace(go.Scatter(x=line[:, 0], y=line[:, 1], name="IA", mode="lines", line=dict(color="#E91E63", width=3)))
+        fig.add_trace(go.Scatter(x=[center[i_rf, 0]], y=[center[i_rf, 1]], mode="markers", name="Ref car", marker=dict(color="#00BCD4", size=10)))
+        fig.add_trace(go.Scatter(x=[line[i_ia, 0]], y=[line[i_ia, 1]], mode="markers", name="IA car", marker=dict(color="#E91E63", size=10, symbol="triangle-up")))
+        fig.update_yaxes(scaleanchor="x", scaleratio=1)
+        fig.update_layout(height=700, legend=dict(orientation="h"))
+        st.plotly_chart(fig, width="stretch")
+
+        # Auto-play loop (non bloquant): advance time and rerun
+        if st.session_state.sim_state["playing"] and st.session_state.sim_state["t"] < T_max:
+            import time as _time
+            _time.sleep(1/30.0)
+            st.session_state.sim_state["t"] = float(min(T_max, st.session_state.sim_state["t"] + (1/30.0)*st.session_state.sim_state["speed"]))
+            st.experimental_rerun()
+
         delta = sim_ref["time_s"] - sim["time_s"]
         thr = float(cfg["optimization"].get("delta_win_threshold_s", 0.15))
         verdict = "Victoire probable: OUI" if delta >= thr else "Victoire probable: NON"
@@ -124,14 +172,6 @@ def main():
             st.success(verdict)
         else:
             st.warning(verdict)
-
-        st.subheader("Trajectoire sur le circuit")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=center[:, 0], y=center[:, 1], name="Centerline", mode="lines", line=dict(color="#888", width=2)))
-        fig.add_trace(go.Scatter(x=line[:, 0], y=line[:, 1], name="IA", mode="lines", line=dict(color="#E91E63", width=3)))
-        fig.update_yaxes(scaleanchor="x", scaleratio=1)
-        fig.update_layout(height=700, legend=dict(orientation="h"))
-        st.plotly_chart(fig, width="stretch")
 
         st.subheader("Profils vitesse")
         v1 = sim["v"]
