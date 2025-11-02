@@ -143,7 +143,10 @@ def main():
         circuit2 = st.selectbox("Circuit pour l'IA", circuits, index=0, key="c2")
         event2 = EVENT_MAP.get(circuit2, circuit2)
         year2 = st.number_input("Année données (pour centerline)", value=year, min_value=2018, max_value=2025, step=1, key="y2")
-        if st.button("Calculer une trajectoire IA (aperçu)"):
+        run_id = f"{event2.replace(' ', '_')}_{int(year2)}"
+        step = st.select_slider("Évaluations à exécuter maintenant", options=[50,100,200,400], value=100)
+        colA, colB = st.columns(2)
+        if colA.button("Continuer l'entraînement (checkpoint)"):
             try:
                 from evolution.cmaes_trainer import optimize_line_cmaes, CMAESConfig
             except Exception:
@@ -164,7 +167,8 @@ def main():
                     return
 
                 evol = cfg.get("evolution", {})
-                conf = CMAESConfig(evaluations=int(evol.get("evaluations_per_circuit", 400)),
+                total = int(evol.get("evaluations_per_circuit", 400))
+                conf = CMAESConfig(evaluations=step,
                                    n_ctrl=int(evol.get("n_ctrl_points", 25)),
                                    track_half_width=float(cfg["optimization"]["track_half_width_m"]))
 
@@ -175,8 +179,15 @@ def main():
                     out = simulate_lap(xy, k, v_lim, a_long_max=float(cfg["optimization"]["a_long_max"]))
                     return out["time_s"], out
 
-                res = optimize_line_cmaes(center, sim_fn, conf)
+                res = optimize_line_cmaes(center, sim_fn, conf, run_id=run_id, resume=True)
                 st.session_state["evo_payload"] = {"center": center, "ia": res["best_line"], "time": res["best_time"], "hist": res["history"]}
+        if colB.button("Réinitialiser le run"):
+            import shutil
+            import pathlib as _pl
+            run_dir = _pl.Path("data/evolution") / run_id
+            if run_dir.exists():
+                shutil.rmtree(run_dir)
+            st.success("Checkpoint supprimé. Vous pouvez relancer l'entraînement.")
 
         if "evo_payload" in st.session_state:
             payload = st.session_state["evo_payload"]
@@ -192,4 +203,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
