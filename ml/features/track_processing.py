@@ -40,31 +40,74 @@ def offset_line(xy_center: np.ndarray, offsets: np.ndarray) -> np.ndarray:
 
 
 def posdata_to_centerline(pos_df: pd.DataFrame) -> np.ndarray:
-    """Construit un centerline approximatif à partir des positions FastF1.
+    """Construit un centerline stable à partir de `positions` FastF1.
 
-    On regroupe par tour, on normalise par la distance, puis on moyenne.
+    Étapes robustes:
+    - garder un seul pilote (celui avec le plus d'échantillons) pour éviter le « mélange » multi-voitures;
+    - ignorer l'ordre temporel et reconstruire une boucle fermée via l'angle polaire autour du centroïde;
+    - médiane par bin angulaire, puis lissage et rééchantillonnage.
     """
     if not {"X", "Y"}.issubset(set(pos_df.columns)):
-        # Colonnes FastF1 typiques: 'X', 'Y'
         raise ValueError("Positions FastF1 attendues avec colonnes 'X', 'Y'")
 
-    xy = pos_df[["X", "Y"]].to_numpy()
-    # tri sommaire par temps croissant si présent
-    if "Date" in pos_df.columns:
-        pos_df = pos_df.sort_values("Date")
-        xy = pos_df[["X", "Y"]].to_numpy()
-    # Option minimale: lissage léger (médiane) pour réduire le bruit
-    from scipy.signal import medfilt
+    df = pos_df.copy()
+    if "Driver" in df.columns and df["Driver"].notna().any():
+        # choisir le pilote avec le plus de points
+        top = df["Driver"].value_counts().idx_max()
+        df = df[df["Driver"] == top]
+    elif "DriverNumber" in df.columns and df["DriverNumber"].notna().any():
+        top = df["DriverNumber"].value_counts().idx_max()
+        df = df[df["DriverNumber"] == top]
 
-    k = 7 if len(xy) >= 7 else (len(xy) // 2 * 2 + 1)
-    xy_smooth = np.column_stack([medfilt(xy[:, 0], k), medfilt(xy[:, 1], k)])
-    # Échantillonnage uniforme en arc-length
-    s = arc_length(xy_smooth)
-    if s[-1] <= 0:
-        return xy_smooth
-    n_pts = min(2000, len(xy_smooth))
+    xy = df[["X", "Y"]].to_numpy()
+    if len(xy) < 10:
+        return xy
+
+    # Centroïde et angles
+    cx, cy = float(np.median(xy[:, 0])), float(np.median(xy[:, 1]))
+    ang = np.arctan2(xy[:, 1] - cy, xy[:, 0] - cx)
+
+    # Bins angulaires et médiane par bin
+    nb = min(2000, max(200, len(xy) // 20))
+    bins = np.linspace(-np.pi, np.pi, nb + 1)
+    idx = np.digitize(ang, bins) - 1
+    x_med = np.zeros(nb)
+    y_med = np.zeros(nb)
+    for b in range(nb):
+        mask = idx == b
+        if not np.any(mask):
+            # interpolation des trous
+            x_med[b] = np.nan
+            y_med[b] = np.nan
+        else:
+            x_med[b] = np.median(xy[mask, 0])
+            y_med[b] = np.median(xy[mask, 1])
+
+    # combler les NaN par interpolation circulaire
+    def _interp_circular(vec: np.ndarray) -> np.ndarray:
+        v = vec.copy()
+        n = len(v)
+        isn = np.isnan(v)
+        if np.any(isn):
+            x = np.arange(n)
+            v[isn] = np.interp(x[isn], x[~isn], v[~isn])
+        return v
+
+    x_med = _interp_circular(x_med)
+    y_med = _interp_circular(y_med)
+
+    outline = np.column_stack([x_med, y_med])
+    # lissage léger
+    from scipy.signal import savgol_filter
+    win = 21 if len(outline) >= 21 else (len(outline) // 2 * 2 + 1)
+    xs = savgol_filter(outline[:, 0], win, 3, mode="wrap")
+    ys = savgol_filter(outline[:, 1], win, 3, mode="wrap")
+    outline = np.column_stack([xs, ys])
+
+    # rééchantillonnage uniforme en arc-length
+    s = arc_length(outline)
+    n_pts = 2000
     s_u = np.linspace(0, s[-1], n_pts)
-    x_u = np.interp(s_u, s, xy_smooth[:, 0])
-    y_u = np.interp(s_u, s, xy_smooth[:, 1])
+    x_u = np.interp(s_u, s, outline[:, 0])
+    y_u = np.interp(s_u, s, outline[:, 1])
     return np.column_stack([x_u, y_u])
-

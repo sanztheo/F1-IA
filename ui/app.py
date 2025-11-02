@@ -199,7 +199,14 @@ def main():
         if st.session_state.sim_state["playing"] and st.session_state.sim_state["t"] < T_max:
             import time as _time
             _time.sleep(1/30.0)
-            st.experimental_rerun()
+            try:
+                st.rerun()
+            except Exception:
+                # compat: older/newer Streamlit
+                try:
+                    st.experimental_rerun()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
 
     st.info("Étapes: 1) Collecte 2) Entraînement 3) Simulation. Utilisez votre venv.")
 
