@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import pathlib as _pl
 from typing import Dict, Any
 
@@ -16,7 +17,11 @@ from .models.vlim_regressor import VLimModel
 from .models.line_optimizer_iter import optimize_line_iterative
 
 
+logger = logging.getLogger("f1ia.ui")
+
+
 def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
+    logger.info("run_inference start: config=%s session=%s", config_path, session_id)
     cfg = yaml.safe_load(_pl.Path(config_path).read_text())
     data_dir = _pl.Path(cfg.get("data_dir", "data"))
     half_width = float(cfg["optimization"]["track_half_width_m"]) \
@@ -29,10 +34,19 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
 
     # Charger positions FastF1
     sess_dir = data_dir / "raw" / "fastf1" / session_id
+    logger.info("session dir: %s", sess_dir)
     pos_path = sess_dir / "positions.parquet"
     if not pos_path.exists():
         pos_path = sess_dir / "positions.csv"
-    pos = pd.read_parquet(pos_path) if pos_path.suffix == ".parquet" else pd.read_csv(pos_path)
+    if not pos_path.exists():
+        logger.error("positions file missing for session: %s", sess_dir)
+        raise FileNotFoundError(f"positions.* introuvable dans {sess_dir}")
+    logger.info("positions file: %s", pos_path)
+    try:
+        pos = pd.read_parquet(pos_path) if pos_path.suffix == ".parquet" else pd.read_csv(pos_path)
+    except Exception as e:
+        logger.exception("failed to read positions: %s", e)
+        raise
 
     center = posdata_to_centerline(pos)
     kappa = curvature(center)
@@ -47,6 +61,7 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
 
     env_model = LateralEnvelope.load(adv_env_path) if adv_env_path.exists() else None
     vlim_model = VLimModel.load(adv_vlim_path) if adv_vlim_path.exists() else None
+    logger.info("models: env=%s vlim=%s old=%s", adv_env_path.exists(), adv_vlim_path.exists(), (model_path.exists()))
 
     # Construire DataFrame de features pour mu / multiplicateur
     weather_path = sess_dir / "weather.parquet"
@@ -54,7 +69,11 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
         weather = pd.read_parquet(weather_path)
     else:
         weather_csv = sess_dir / "weather.csv"
-        weather = pd.read_csv(weather_csv) if weather_csv.exists() else pd.DataFrame()
+        if weather_csv.exists():
+            weather = pd.read_csv(weather_csv)
+        else:
+            weather = pd.DataFrame()
+    logger.info("weather: parquet=%s csv=%s loaded_empty=%s", weather_path.exists(), (sess_dir / 'weather.csv').exists(), weather.empty)
 
     feats = pd.DataFrame({
         "Curvature": kappa,
@@ -75,19 +94,22 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
     else:
         # fallback ancien modèle
         if model is None:
-            raise FileNotFoundError("Aucun modèle de limites disponible. Entraînez ml.training ou ml.training_advanced.")
+            logger.error("no models available: expected %s (advanced) or %s (legacy)", adv_env_path, model_path)
+            raise FileNotFoundError("Aucun modèle de limites disponible. Entraînez ml.training_advanced ou ml.training.")
         mu = model.predict_mu(feats)
         xy_line, offsets = optimize_line(
             center, track_half_width=half_width, mu_profile=mu,
             a_lat_max_base=a_lat_base, smoothing_weight=smooth_w, apex_weight=apex_w
         )
 
-    return {
+    out = {
         "centerline": center,
         "racing_line": xy_line,
         "offsets": offsets,
         "mu": mu,
     }
+    logger.info("run_inference done: center=%s line=%s", getattr(center, 'shape', None), getattr(xy_line, 'shape', None))
+    return out
 
 
 if __name__ == "__main__":

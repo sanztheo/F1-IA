@@ -13,6 +13,7 @@ import pandas as pd
 import yaml
 import streamlit as st
 import plotly.graph_objects as go
+import logging
 
 from ml.inference import run_inference
 from ml.features.track_processing import curvature
@@ -20,6 +21,15 @@ from simulation.lap_simulator import simulate_lap, speed_profile_from_curvature
 
 
 st.set_page_config(page_title="F1-IA Trajectoire Optimale", layout="wide")
+
+# Configure logger for terminal output
+_logger = logging.getLogger("f1ia.ui")
+if not _logger.handlers:
+    _handler = logging.StreamHandler()
+    _formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+    _handler.setFormatter(_formatter)
+    _logger.addHandler(_handler)
+_logger.setLevel(logging.INFO)
 
 
 @st.cache_data
@@ -78,8 +88,10 @@ def main():
         with st.spinner("Calcul de la trajectoire IA..."):
             try:
                 out = run_inference("config.yaml", session_id)
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                _logger.error("Data missing: %s", e)
                 st.error("Données manquantes pour cette session. Vérifiez la collecte et l'entraînement.")
+                st.caption(str(e))
                 return
             center = out["centerline"]
             line = out["racing_line"]
