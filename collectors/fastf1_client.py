@@ -39,7 +39,15 @@ def export_session_core(sess, out_dir: str | os.PathLike, fmt: str = "parquet") 
 
     laps = sess.laps
     weather = getattr(sess, "weather_data", None)
-    pos = sess.get_pos_data()  # positions XY vs temps
+    # positions XY vs temps (FastF1 3.x peut ne pas exposer get_pos_data selon version)
+    pos = None
+    try:
+        if hasattr(sess, "get_pos_data"):
+            pos = sess.get_pos_data()
+        elif hasattr(sess, "get_position_data"):
+            pos = sess.get_position_data()
+    except Exception:
+        pos = None
 
     def _save(df: pd.DataFrame, name: str):
         p = out / f"{name}.{ 'csv' if fmt=='csv' else 'parquet'}"
@@ -54,7 +62,28 @@ def export_session_core(sess, out_dir: str | os.PathLike, fmt: str = "parquet") 
     manifest["tables"].append({"name": "laps", "path": _save(laps, "laps")})
     if weather is not None:
         manifest["tables"].append({"name": "weather", "path": _save(weather, "weather")})
-    manifest["tables"].append({"name": "positions", "path": _save(pos, "positions")})
+    if pos is None or getattr(pos, "empty", False):
+        # Fallback: concaténer télémétrie XY des meilleurs tours par pilote
+        try:
+            laps = sess.laps
+            best_per_driver = laps.groupby("Driver").apply(lambda df: df.pick_fastest())
+            chunks = []
+            for _, lap in (best_per_driver.items() if hasattr(best_per_driver, "items") else best_per_driver.iterrows()):
+                try:
+                    tel = lap.get_telemetry()
+                    if {"X", "Y"}.issubset(tel.columns):
+                        tel = tel[["Date", "X", "Y"]].copy()
+                        tel["Driver"] = lap["Driver"]
+                        chunks.append(tel)
+                except Exception:
+                    continue
+            if chunks:
+                pos = pd.concat(chunks, ignore_index=True)
+        except Exception:
+            pos = None
+
+    if pos is not None and not pos.empty:
+        manifest["tables"].append({"name": "positions", "path": _save(pos, "positions")})
 
     # Télémétrie du meilleur tour par pilote
     try:
@@ -81,4 +110,3 @@ def export_session_core(sess, out_dir: str | os.PathLike, fmt: str = "parquet") 
 
 def session_identifier(year: int, event: str, session_code: str) -> str:
     return f"{year}_{event}_{session_code}"
-

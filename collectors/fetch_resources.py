@@ -18,6 +18,29 @@ from tqdm import tqdm
 from .fastf1_client import load_session, export_session_core, session_identifier
 
 
+def _schedule_matches_for_track(year: int, track_query: str):
+    """Retourne les noms d'événements (EventName) correspondant au track_query pour l'année.
+
+    Évite les corrections hasardeuses de FastF1 en pré-filtrant via le calendrier.
+    """
+    import fastf1
+    try:
+        sched = fastf1.get_event_schedule(year, include_testing=False)
+    except Exception:
+        return []
+    cols = [c for c in ["Location", "EventName", "OfficialEventName"] if c in sched.columns]
+    if not cols:
+        return []
+    q = track_query.lower()
+    mask = False
+    for c in cols:
+        mask = mask | sched[c].astype(str).str.lower().str.contains(q, na=False)
+    matches = sched[mask]
+    # Retirer éventuels événements annulés/inexistants (si colonne 'EventFormat' ou 'F1ApiSupport' indique absence)
+    # FastF1 ne liste généralement pas Monaco 2020 car annulé, donc matches serait vide.
+    return list(dict.fromkeys(matches.get("EventName", pd.Series(dtype=str)).tolist()))
+
+
 @dataclass
 class Config:
     data_dir: _pl.Path
@@ -53,14 +76,20 @@ def main(config_path: str) -> None:
 
     for year in tqdm(cfg.seasons, desc="Seasons"):
         for event in tqdm(cfg.tracks, leave=False, desc=f"Year {year}"):
+            # Résoudre 'event' vers 0..n noms d'événements concrets via le calendrier
+            event_names = _schedule_matches_for_track(year, event)
+            if not event_names:
+                tqdm.write(f"Skip {year}-{event}: non présent au calendrier (annulé ou renommé)")
+                continue
+            for ev_name in event_names:
             for sess_code in tqdm(cfg.sessions, leave=False, desc="Sessions"):
                 try:
-                    sess = load_session(year, event, sess_code)
+                    sess = load_session(year, ev_name, sess_code)
                 except Exception as e:
-                    tqdm.write(f"Skip {year}-{event}-{sess_code}: {e}")
+                    tqdm.write(f"Skip {year}-{ev_name}-{sess_code}: {e}")
                     continue
 
-                sid = session_identifier(year, event, sess_code)
+                sid = session_identifier(year, ev_name, sess_code)
                 out_dir = dirs["raw"] / "fastf1" / sid
                 try:
                     m = export_session_core(sess, out_dir, fmt=cfg.storage_format)
@@ -82,4 +111,3 @@ if __name__ == "__main__":
     ap.add_argument("--config", default="config.yaml")
     args = ap.parse_args()
     main(args.config)
-
