@@ -14,6 +14,7 @@ from typing import Dict, Any, List
 
 import yaml
 from tqdm import tqdm
+import pandas as pd
 
 from .fastf1_client import load_session, export_session_core, session_identifier
 
@@ -82,7 +83,7 @@ def main(config_path: str) -> None:
                 tqdm.write(f"Skip {year}-{event}: non présent au calendrier (annulé ou renommé)")
                 continue
             for ev_name in event_names:
-            for sess_code in tqdm(cfg.sessions, leave=False, desc="Sessions"):
+                for sess_code in tqdm(cfg.sessions, leave=False, desc="Sessions"):
                 try:
                     sess = load_session(year, ev_name, sess_code)
                 except Exception as e:
