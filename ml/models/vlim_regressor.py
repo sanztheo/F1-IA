@@ -7,7 +7,6 @@ from typing import Dict, Any
 
 import numpy as np
 import pandas as pd
-from sklearn.experimental import enable_hist_gradient_boosting  # noqa: F401
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
@@ -68,4 +67,3 @@ class VLimModel:
         m = joblib.load(path)
         v = cls(model=m)
         return v
-
