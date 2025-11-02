@@ -1,0 +1,870 @@
+{
+  "resources": [
+    {
+      "provider": "fastf1",
+      "session": "2020_70th Anniversary Grand Prix_Q",
+      "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_70th Anniversary Grand Prix_FP2",
+      "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Belgian Grand Prix_FP2",
+      "path": "data/raw/fastf1/2020_Belgian Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_70th Anniversary Grand Prix_R",
+      "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_70th Anniversary Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_British Grand Prix_FP2",
+      "path": "data/raw/fastf1/2020_British Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_British Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_British Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_British Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_British Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Belgian Grand Prix_Q",
+      "path": "data/raw/fastf1/2020_Belgian Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_British Grand Prix_Q",
+      "path": "data/raw/fastf1/2020_British Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_British Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_British Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_British Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_British Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_British Grand Prix_R",
+      "path": "data/raw/fastf1/2020_British Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_British Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_British Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_British Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_British Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Italian Grand Prix_Q",
+      "path": "data/raw/fastf1/2020_Italian Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Italian Grand Prix_FP2",
+      "path": "data/raw/fastf1/2020_Italian Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Belgian Grand Prix_R",
+      "path": "data/raw/fastf1/2020_Belgian Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Belgian Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Italian Grand Prix_R",
+      "path": "data/raw/fastf1/2020_Italian Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Italian Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Spanish Grand Prix_Q",
+      "path": "data/raw/fastf1/2020_Spanish Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Spanish Grand Prix_FP2",
+      "path": "data/raw/fastf1/2020_Spanish Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2020_Spanish Grand Prix_R",
+      "path": "data/raw/fastf1/2020_Spanish Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2020_Spanish Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Belgian Grand Prix_FP2",
+      "path": "data/raw/fastf1/2021_Belgian Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Belgian Grand Prix_Q",
+      "path": "data/raw/fastf1/2021_Belgian Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Belgian Grand Prix_R",
+      "path": "data/raw/fastf1/2021_Belgian Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Belgian Grand Prix_R/weather.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_British Grand Prix_FP2",
+      "path": "data/raw/fastf1/2021_British Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_British Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_British Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_British Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_British Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_British Grand Prix_Q",
+      "path": "data/raw/fastf1/2021_British Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_British Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_British Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_British Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_British Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Italian Grand Prix_Q",
+      "path": "data/raw/fastf1/2021_Italian Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_British Grand Prix_R",
+      "path": "data/raw/fastf1/2021_British Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_British Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_British Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_British Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_British Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Italian Grand Prix_FP2",
+      "path": "data/raw/fastf1/2021_Italian Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Italian Grand Prix_R",
+      "path": "data/raw/fastf1/2021_Italian Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Italian Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Monaco Grand Prix_FP2",
+      "path": "data/raw/fastf1/2021_Monaco Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Monaco Grand Prix_Q",
+      "path": "data/raw/fastf1/2021_Monaco Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Spanish Grand Prix_FP2",
+      "path": "data/raw/fastf1/2021_Spanish Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Spanish Grand Prix_Q",
+      "path": "data/raw/fastf1/2021_Spanish Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Monaco Grand Prix_R",
+      "path": "data/raw/fastf1/2021_Monaco Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Monaco Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_Belgian Grand Prix_FP2",
+      "path": "data/raw/fastf1/2022_Belgian Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2021_Spanish Grand Prix_R",
+      "path": "data/raw/fastf1/2021_Spanish Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2021_Spanish Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_Belgian Grand Prix_Q",
+      "path": "data/raw/fastf1/2022_Belgian Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_British Grand Prix_FP2",
+      "path": "data/raw/fastf1/2022_British Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_British Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_British Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_British Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_British Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_Belgian Grand Prix_R",
+      "path": "data/raw/fastf1/2022_Belgian Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_Belgian Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_British Grand Prix_Q",
+      "path": "data/raw/fastf1/2022_British Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_British Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_British Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_British Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_British Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_British Grand Prix_R",
+      "path": "data/raw/fastf1/2022_British Grand Prix_R",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_British Grand Prix_R/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_British Grand Prix_R/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_British Grand Prix_R/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_British Grand Prix_R/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_Italian Grand Prix_FP2",
+      "path": "data/raw/fastf1/2022_Italian Grand Prix_FP2",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_FP2/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_FP2/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_FP2/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_FP2/telemetry_best_per_driver.parquet"
+        }
+      ]
+    },
+    {
+      "provider": "fastf1",
+      "session": "2022_Italian Grand Prix_Q",
+      "path": "data/raw/fastf1/2022_Italian Grand Prix_Q",
+      "tables": [
+        {
+          "name": "laps",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_Q/laps.parquet"
+        },
+        {
+          "name": "weather",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_Q/weather.parquet"
+        },
+        {
+          "name": "positions",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_Q/positions.parquet"
+        },
+        {
+          "name": "telemetry_best_per_driver",
+          "path": "data/raw/fastf1/2022_Italian Grand Prix_Q/telemetry_best_per_driver.parquet"
+        }
+      ]
+    }
+  ]
+}

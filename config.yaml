@@ -27,6 +27,10 @@ optimization:
   smoothing_weight: 1.0
   apex_weight: 2.0
 
+advanced:
+  use_advanced: true
+  iterations: 3
+
 # OpenF1 (optionnel)
 openf1:
   base_url: https://api.openf1.org/v1
@@ -34,4 +38,3 @@ openf1:
 # Jolpica (Ergast-compatible)
 jolpica:
   base_url: https://api.jolpi.ca/ergast/f1
-

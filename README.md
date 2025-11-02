@@ -26,7 +26,9 @@ Modifiez `config.yaml` (saisons, circuits, sessions, paramètres d'optimisation)
 ## 1) Collecte
 
 ```
-python -m collectors.fetch_resources --config config.yaml
+python -m collectors.fetch_resources --config config.yaml --workers 4
+# Options: --workers 4 (parallélisme), --verbose (afficher logs FastF1)
+# Variables env: F1IA_FETCH_WORKERS, F1IA_FETCH_VERBOSE=1
 ```
 Les données sont écrites sous `data/raw/fastf1/<year_event_session>/...`.
 
@@ -42,6 +44,15 @@ python -m ml.training --config config.yaml
 ```
 Produit `data/models/vehicle_limits.json`.
 
+### Entraînement avancé (recommandé)
+
+Calibre une enveloppe latérale (quantile régression) + un multiplicateur environnemental et alimente l'optimiseur itératif.
+
+```
+python -m ml.training_advanced --config config.yaml
+```
+Produit `data/models/lateral_envelope.json` et `data/models/vlim_model.joblib`.
+
 ## 3) UI + Simulation
 
 ```
@@ -51,6 +62,7 @@ Choisissez la session et cliquez sur « Lancer la simulation ».
 
 ## Notes techniques
 - L'optimisation de ligne est une convexification pragmatique: offsets latéraux sur le centerline, objectif lissage + proxy de temps. Pour un modèle plus physique (vitesses couplées), enrichir `ml/models/line_optimizer.py`.
+- Un optimiseur itératif « two‑step » (ligne ↔ vitesse) est utilisé si `advanced.use_advanced: true` dans `config.yaml`.
 - La simulation utilise des passes avant/arrière pour respecter l'accélération longitudinale et les limites latérales.
 - Pour comparer à un vainqueur réel, chargez la télémétrie du meilleur tour via FastF1 et ajoutez le tracé « référence » dans `ui/app.py`.
 
@@ -65,4 +77,3 @@ Choisissez la session et cliquez sur « Lancer la simulation ».
 
 ## Dossiers de données et Git
 - `data/` est créé vide avec un `.gitkeep` pour conserver l'arborescence. Les artefacts volumineux `data/raw` et `data/processed` sont ignorés par Git.
-

@@ -4,6 +4,7 @@ pyarrow>=17.0
 fastf1>=3.4
 requests>=2.32
 scikit-learn>=1.5
+joblib>=1.4
 scipy>=1.13
 cvxpy>=1.5
 shapely>=2.0

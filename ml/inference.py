@@ -11,6 +11,9 @@ import yaml
 from .features.track_processing import posdata_to_centerline, curvature
 from .models.vehicle_limits import VehicleLimitsModel
 from .models.line_optimizer import optimize_line
+from .models.phys_params import LateralEnvelope
+from .models.vlim_regressor import VLimModel
+from .models.line_optimizer_iter import optimize_line_iterative
 
 
 def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
@@ -21,6 +24,8 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
     smooth_w = float(cfg["optimization"].get("smoothing_weight", 1.0))
     apex_w = float(cfg["optimization"].get("apex_weight", 2.0))
     a_lat_base = float(cfg["optimization"].get("a_lat_max", 12.0))
+    use_adv = bool(cfg.get("advanced", {}).get("use_advanced", True))
+    iters = int(cfg.get("advanced", {}).get("iterations", 3))
 
     # Charger positions FastF1
     sess_dir = data_dir / "raw" / "fastf1" / session_id
@@ -32,11 +37,18 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
     center = posdata_to_centerline(pos)
     kappa = curvature(center)
 
-    # Charger modèle de limites
+    # Charger modèles
     model_path = data_dir / "models" / "vehicle_limits.json"
-    model = VehicleLimitsModel.load(model_path)
+    adv_env_path = data_dir / "models" / "lateral_envelope.json"
+    adv_vlim_path = data_dir / "models" / "vlim_model.joblib"
+    model = None
+    if model_path.exists():
+        model = VehicleLimitsModel.load(model_path)
 
-    # Construire DataFrame de features pour mu
+    env_model = LateralEnvelope.load(adv_env_path) if adv_env_path.exists() else None
+    vlim_model = VLimModel.load(adv_vlim_path) if adv_vlim_path.exists() else None
+
+    # Construire DataFrame de features pour mu / multiplicateur
     weather_path = sess_dir / "weather.parquet"
     if weather_path.exists():
         weather = pd.read_parquet(weather_path)
@@ -51,12 +63,24 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
         "Rainfall": weather.get("Rainfall", pd.Series(np.zeros(len(kappa)))),
         "Speed": pd.Series(np.full(len(kappa), 60.0)),  # placeholder si requis par extract
     })
-    mu = model.predict_mu(feats)
-
-    xy_line, offsets = optimize_line(
-        center, track_half_width=half_width, mu_profile=mu,
-        a_lat_max_base=a_lat_base, smoothing_weight=smooth_w, apex_weight=apex_w
-    )
+    if use_adv and env_model is not None and vlim_model is not None:
+        # multiplicateur environnemental
+        m_env = vlim_model.predict_multiplier(feats[["Curvature", "AirTemp", "TrackTemp", "Rainfall"]])
+        xy_line, offsets = optimize_line_iterative(
+            center, track_half_width=half_width, env_multiplier=m_env, envelope=env_model,
+            a_long_max=cfg["optimization"].get("a_long_max", 9.0), iterations=iters,
+            smoothing_weight=smooth_w, apex_weight=apex_w
+        )
+        mu = None
+    else:
+        # fallback ancien modèle
+        if model is None:
+            raise FileNotFoundError("Aucun modèle de limites disponible. Entraînez ml.training ou ml.training_advanced.")
+        mu = model.predict_mu(feats)
+        xy_line, offsets = optimize_line(
+            center, track_half_width=half_width, mu_profile=mu,
+            a_lat_max_base=a_lat_base, smoothing_weight=smooth_w, apex_weight=apex_w
+        )
 
     return {
         "centerline": center,
@@ -73,4 +97,3 @@ if __name__ == "__main__":
     args = ap.parse_args()
     out = run_inference(args.config, args.session)
     print("OK - Trajectoire calculée", {k: (v.shape if hasattr(v, 'shape') else type(v)) for k, v in out.items()})
-
