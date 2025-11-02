@@ -31,29 +31,55 @@ def main():
     st.title("F1-IA – Trajectoire optimale")
     cfg = load_cfg("config.yaml")
 
-    seasons = list(range(int(cfg["seasons"]["start"]), int(cfg["seasons"]["end"]) + 1))
-    tracks = cfg.get("tracks", [])
-    sessions = cfg.get("sessions", ["R"])
+    # Découverte des sessions disponibles directement depuis le disque
+    data_dir = _pl.Path(cfg.get("data_dir", "data"))
+    sessions_root = data_dir / "raw" / "fastf1"
+    av_dirs = sorted([p.name for p in sessions_root.glob("*_*_*")])
+    if not av_dirs:
+        st.error("Aucune session trouvée dans data/raw/fastf1. Exécutez la collecte.")
+        st.stop()
 
+    # Parser en (year, event, code)
+    parsed = []
+    for name in av_dirs:
+        # format attendu: YEAR_EventName_SessionCode (EventName peut contenir des espaces)
+        parts = name.split("_")
+        if len(parts) < 3:
+            continue
+        year = parts[0]
+        sess_code = parts[-1]
+        event = "_".join(parts[1:-1]).replace("_", " ")
+        parsed.append((name, int(year), event, sess_code))
+
+    if not parsed:
+        st.error("Impossible d'interpréter les dossiers de sessions.")
+        st.stop()
+
+    years = sorted({y for _, y, _, _ in parsed})
     c1, c2, c3 = st.columns(3)
     with c1:
-        year = st.selectbox("Saison", seasons, index=len(seasons) - 1)
+        year_sel = st.selectbox("Saison", years, index=len(years) - 1)
+    events = sorted({ev for _, y, ev, _ in parsed if y == year_sel})
     with c2:
-        track = st.selectbox("Circuit", tracks, index=0)
+        event_sel = st.selectbox("Événement", events, index=0)
+    sess_codes = sorted({sc for _, y, ev, sc in parsed if y == year_sel and ev == event_sel})
     with c3:
-        sess_code = st.selectbox("Session", sessions, index=sessions.index("R") if "R" in sessions else 0)
+        sess_sel = st.selectbox("Session", sess_codes, index=sess_codes.index("R") if "R" in sess_codes else 0)
 
-    session_id = f"{year}_{track}_{sess_code}"
+    # Reconstruire exactement le dossier
+    # Retrouver le nom exact (avec espaces) tel que dans le dossier
+    candidates = [name for name, y, ev, sc in parsed if y == year_sel and ev == event_sel and sc == sess_sel]
+    session_id = candidates[0] if candidates else None
     st.caption(f"Session: {session_id}")
 
     run_button = st.button("Lancer la simulation", type="primary")
 
-    if run_button:
+    if run_button and session_id:
         with st.spinner("Calcul de la trajectoire IA..."):
             try:
                 out = run_inference("config.yaml", session_id)
             except FileNotFoundError:
-                st.error("Données manquantes. Exécutez d'abord la collecte et l'entraînement.")
+                st.error("Données manquantes pour cette session. Vérifiez la collecte et l'entraînement.")
                 return
             center = out["centerline"]
             line = out["racing_line"]
