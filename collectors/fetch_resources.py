@@ -8,13 +8,16 @@ Usage (après installation deps via votre venv):
 
 import argparse
 import json
+import os
+import logging
 import pathlib as _pl
 from dataclasses import dataclass
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple, Optional
 
 import yaml
 from tqdm import tqdm
 import pandas as pd
+import concurrent.futures as cf
 
 from .fastf1_client import load_session, export_session_core, session_identifier
 
@@ -75,40 +78,94 @@ def main(config_path: str) -> None:
     dirs = ensure_dirs(cfg.data_dir)
     manifest: Dict[str, Any] = {"resources": []}
 
-    for year in tqdm(cfg.seasons, desc="Seasons"):
-        for event in tqdm(cfg.tracks, leave=False, desc=f"Year {year}"):
-            # Résoudre 'event' vers 0..n noms d'événements concrets via le calendrier
+    # Options d'exécution
+    workers_env = int(os.environ.get("F1IA_FETCH_WORKERS", "0") or 0)
+    default_workers = min(4, max(1, (os.cpu_count() or 4)))
+    workers = workers_env if workers_env > 0 else default_workers
+    quiet = os.environ.get("F1IA_FETCH_VERBOSE", "0") not in ("1", "true", "TRUE", "True")
+
+    _configure_logging(quiet=quiet)
+
+    # Construire la liste des tâches (année, event_name, session)
+    tasks: List[Tuple[int, str, str]] = []
+    for year in cfg.seasons:
+        resolved: List[str] = []
+        for event in cfg.tracks:
             event_names = _schedule_matches_for_track(year, event)
             if not event_names:
-                tqdm.write(f"Skip {year}-{event}: non présent au calendrier (annulé ou renommé)")
+                if not quiet:
+                    tqdm.write(f"Skip {year}-{event}: non présent au calendrier (annulé ou renommé)")
                 continue
-            for ev_name in event_names:
-                for sess_code in tqdm(cfg.sessions, leave=False, desc="Sessions"):
-                    try:
-                        sess = load_session(year, ev_name, sess_code)
-                    except Exception as e:
-                        tqdm.write(f"Skip {year}-{ev_name}-{sess_code}: {e}")
-                        continue
+            resolved.extend(event_names)
+        for ev_name in sorted(set(resolved)):
+            for sess_code in cfg.sessions:
+                tasks.append((year, ev_name, sess_code))
 
-                    sid = session_identifier(year, ev_name, sess_code)
-                    out_dir = dirs["raw"] / "fastf1" / sid
-                    try:
-                        m = export_session_core(sess, out_dir, fmt=cfg.storage_format)
-                        manifest["resources"].append({
-                            "provider": "fastf1",
-                            "session": sid,
-                            "path": str(out_dir),
-                            "tables": m.get("tables", []),
-                        })
-                    except Exception as e:
-                        tqdm.write(f"Export error {sid}: {e}")
+    if not tasks:
+        print("Aucune session à traiter.")
+        return
+
+    ok = 0
+    err = 0
+    with cf.ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = [ex.submit(_fetch_single, t[0], t[1], t[2], dirs["raw"], cfg.storage_format) for t in tasks]
+        for fut in tqdm(cf.as_completed(futs), total=len(futs), desc=f"Fetching ({workers} workers)", smoothing=0.1):
+            res = fut.result()
+            if res and res.get("ok"):
+                manifest["resources"].append(res["entry"]) 
+                ok += 1
+            else:
+                err += 1
+                if not quiet and res is not None:
+                    tqdm.write(f"Error {res.get('session')}: {res.get('error')}")
 
     (cfg.data_dir / "resources.json").write_text(json.dumps(manifest, indent=2))
-    print(f"Manifeste écrit: {cfg.data_dir / 'resources.json'}")
+    print(f"Sessions ok: {ok}, erreurs: {err}. Manifeste écrit: {cfg.data_dir / 'resources.json'}")
+
+
+def _fetch_single(year: int, ev_name: str, sess_code: str, raw_dir: _pl.Path, fmt: str) -> Dict[str, Any]:
+    sid = session_identifier(year, ev_name, sess_code)
+    try:
+        sess = load_session(year, ev_name, sess_code)
+    except Exception as e:
+        return {"ok": False, "session": sid, "error": str(e)}
+    out_dir = raw_dir / "fastf1" / sid
+    try:
+        m = export_session_core(sess, out_dir, fmt=fmt)
+        entry = {
+            "provider": "fastf1",
+            "session": sid,
+            "path": str(out_dir),
+            "tables": m.get("tables", []),
+        }
+        return {"ok": True, "entry": entry}
+    except Exception as e:
+        return {"ok": False, "session": sid, "error": str(e)}
+
+
+def _configure_logging(quiet: bool = True, level: int = logging.ERROR) -> None:
+    # Réduit les logs FastF1/requests pour laisser la place aux barres de progression
+    if quiet:
+        base_level = level
+    else:
+        base_level = logging.INFO
+    logging.getLogger().setLevel(base_level)
+    for name in ("fastf1", "req", "core", "_api", "logger", "urllib3"):
+        lg = logging.getLogger(name)
+        lg.setLevel(base_level)
+        lg.propagate = False
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--workers", type=int, default=None, help="Nombre de workers parallèles (défaut: env F1IA_FETCH_WORKERS ou auto)")
+    ap.add_argument("--verbose", action="store_true", help="Afficher les logs FastF1 (par défaut silencieux)")
     args = ap.parse_args()
+
+    # Propager options via env pour main()
+    if args.workers is not None:
+        os.environ["F1IA_FETCH_WORKERS"] = str(args.workers)
+    if args.verbose:
+        os.environ["F1IA_FETCH_VERBOSE"] = "1"
     main(args.config)
