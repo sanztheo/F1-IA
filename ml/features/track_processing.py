@@ -53,11 +53,15 @@ def posdata_to_centerline(pos_df: pd.DataFrame) -> np.ndarray:
     df = pos_df.copy()
     if "Driver" in df.columns and df["Driver"].notna().any():
         # choisir le pilote avec le plus de points
-        top = df["Driver"].value_counts().idx_max()
-        df = df[df["Driver"] == top]
+        vc = df["Driver"].dropna().value_counts()
+        if len(vc):
+            top = vc.idxmax()
+            df = df[df["Driver"] == top]
     elif "DriverNumber" in df.columns and df["DriverNumber"].notna().any():
-        top = df["DriverNumber"].value_counts().idx_max()
-        df = df[df["DriverNumber"] == top]
+        vc = df["DriverNumber"].dropna().value_counts()
+        if len(vc):
+            top = vc.idxmax()
+            df = df[df["DriverNumber"] == top]
 
     xy = df[["X", "Y"]].to_numpy()
     if len(xy) < 10:
