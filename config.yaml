@@ -1,0 +1,37 @@
+# Configuration projet F1-IA
+
+data_dir: data
+storage_format: parquet  # parquet (par défaut) ou csv
+
+seasons:
+  start: 2020
+  end: 2025  # inclusif
+
+# Circuits ciblés (noms FastF1)
+tracks:
+  - Monaco
+  - Monza
+  - Silverstone
+  - Spa-Francorchamps
+  - Suzuka
+  - Barcelona
+
+sessions: ["FP2", "Q", "R"]
+
+# Paramètres modèle/optimisation
+optimization:
+  delta_win_threshold_s: 0.15
+  track_half_width_m: 6.0
+  a_long_max: 9.0     # m/s^2
+  a_lat_max: 12.0     # m/s^2 (sera modulé par mu appris)
+  smoothing_weight: 1.0
+  apex_weight: 2.0
+
+# OpenF1 (optionnel)
+openf1:
+  base_url: https://api.openf1.org/v1
+
+# Jolpica (Ergast-compatible)
+jolpica:
+  base_url: https://api.jolpi.ca/ergast/f1
+
