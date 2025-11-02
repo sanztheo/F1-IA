@@ -35,15 +35,13 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
     # Charger positions FastF1
     sess_dir = data_dir / "raw" / "fastf1" / session_id
     logger.info("session dir: %s", sess_dir)
-    pos_path = sess_dir / "positions.parquet"
-    if not pos_path.exists():
-        pos_path = sess_dir / "positions.csv"
-    if not pos_path.exists():
+    pos_path = _find_positions_path(sess_dir, data_dir)
+    if pos_path is None:
         logger.error("positions file missing for session: %s", sess_dir)
         raise FileNotFoundError(f"positions.* introuvable dans {sess_dir}")
     logger.info("positions file: %s", pos_path)
     try:
-        pos = pd.read_parquet(pos_path) if pos_path.suffix == ".parquet" else pd.read_csv(pos_path)
+        pos = pd.read_parquet(pos_path) if str(pos_path).endswith(".parquet") else pd.read_csv(pos_path)
     except Exception as e:
         logger.exception("failed to read positions: %s", e)
         raise
@@ -110,6 +108,57 @@ def run_inference(config_path: str, session_id: str) -> Dict[str, Any]:
     }
     logger.info("run_inference done: center=%s line=%s", getattr(center, 'shape', None), getattr(xy_line, 'shape', None))
     return out
+
+
+def _find_positions_path(sess_dir: _pl.Path, data_dir: _pl.Path) -> _pl.Path | None:
+    """Retourne un chemin positions.* pour la session; fallback sur sessions sœurs, puis autres années.
+
+    - 1) positions.* dans sess_dir
+    - 2) même année + même évènement, autre code (FP/Q/R)
+    - 3) autre année mais même évènement (prend la plus proche en absolu)
+    """
+    p1 = sess_dir / "positions.parquet"
+    p2 = sess_dir / "positions.csv"
+    if p1.exists() or p2.exists():
+        return p1 if p1.exists() else p2 if p2.exists() else None
+
+    # Parse year / event / sess_code depuis le nom de dossier
+    name = sess_dir.name
+    try:
+        first_us = name.find("_")
+        last_us = name.rfind("_")
+        year = int(name[:first_us])
+        event = name[first_us + 1:last_us]
+        sess_code = name[last_us + 1:]
+    except Exception:
+        return None
+
+    root = data_dir / "raw" / "fastf1"
+    # 2) même année + évènement
+    candidates = sorted([p for p in root.glob(f"{year}_{event}_*")])
+    for c in candidates:
+        q1, q2 = c / "positions.parquet", c / "positions.csv"
+        if q1.exists() or q2.exists():
+            logger.info("positions fallback: using %s", q1 if q1.exists() else q2)
+            return q1 if q1.exists() else q2
+
+    # 3) autre année, même évènement – choisir la plus proche en année
+    any_year = sorted([p for p in root.glob(f"*_{event}_*")])
+    if any_year:
+        # trier par |year' - year|
+        def _year_of(p: _pl.Path) -> int:
+            try:
+                return int(p.name.split("_")[0])
+            except Exception:
+                return 0
+
+        any_year.sort(key=lambda p: abs(_year_of(p) - year))
+        for c in any_year:
+            q1, q2 = c / "positions.parquet", c / "positions.csv"
+            if q1.exists() or q2.exists():
+                logger.info("positions fallback (cross-year): using %s", q1 if q1.exists() else q2)
+                return q1 if q1.exists() else q2
+    return None
 
 
 if __name__ == "__main__":

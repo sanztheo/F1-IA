@@ -44,9 +44,16 @@ def main():
     # Découverte des sessions disponibles directement depuis le disque
     data_dir = _pl.Path(cfg.get("data_dir", "data"))
     sessions_root = data_dir / "raw" / "fastf1"
-    av_dirs = sorted([p.name for p in sessions_root.glob("*_*_*")])
+    av_dirs_all = sorted([p.name for p in sessions_root.glob("*_*_*")])
+    # Ne proposer que les sessions qui possèdent des positions.*
+    av_dirs = []
+    for name in av_dirs_all:
+        p = sessions_root / name
+        if (p / "positions.parquet").exists() or (p / "positions.csv").exists():
+            av_dirs.append(name)
     if not av_dirs:
-        st.error("Aucune session trouvée dans data/raw/fastf1. Exécutez la collecte.")
+        st.error("Aucune session exploitable (positions.*) trouvée dans data/raw/fastf1.")
+        st.caption("Exécutez la collecte ou sélectionnez une autre saison/circuit.")
         st.stop()
 
     # Parser en (year, event, code)
