@@ -5,7 +5,7 @@ from typing import Tuple
 
 from ..features.track_processing import curvature, offset_line
 from ..models.phys_params import LateralEnvelope
-from ...simulation.lap_simulator import simulate_lap
+from simulation.lap_simulator import simulate_lap
 import cvxpy as cp
 
 
@@ -64,4 +64,3 @@ def _second_diff_matrix(n: int):
     import scipy.sparse as sp
     e = np.ones(n)
     return sp.diags([e, -2 * e, e], [0, 1, 2], shape=(n - 2, n))
-
