@@ -1,7 +1,7 @@
 # Configuration projet F1-IA
 
 data_dir: data
-storage_format: parquet  # parquet (par défaut) ou csv
+storage_format: parquet  # réservé si vous exportez des artefacts
 
 seasons:
   start: 2020
@@ -25,10 +25,6 @@ optimization:
   a_lat_max: 12.0     # m/s^2 (sera modulé par mu appris)
   smoothing_weight: 1.0
   apex_weight: 2.0
-
-advanced:
-  use_advanced: true
-  iterations: 3
 
 evolution:
   evaluations_per_circuit: 400
