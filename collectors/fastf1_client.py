@@ -66,15 +66,15 @@ def export_session_core(sess, out_dir: str | os.PathLike, fmt: str = "parquet") 
         # Fallback: concaténer télémétrie XY des meilleurs tours par pilote
         try:
             laps = sess.laps
-            best_per_driver = laps.groupby("Driver").apply(lambda df: df.pick_fastest())
             chunks = []
-            for _, lap in (best_per_driver.items() if hasattr(best_per_driver, "items") else best_per_driver.iterrows()):
+            for lap in _best_laps_by_driver(laps):
                 try:
                     tel = lap.get_telemetry()
                     if {"X", "Y"}.issubset(tel.columns):
-                        tel = tel[["Date", "X", "Y"]].copy()
-                        tel["Driver"] = lap["Driver"]
-                        chunks.append(tel)
+                        cols = [c for c in ["Date", "Time"] if c in tel.columns]
+                        base = tel[cols + ["X", "Y"]].copy() if cols else tel[["X", "Y"]].copy()
+                        base["Driver"] = lap["Driver"]
+                        chunks.append(base)
                 except Exception:
                     continue
             if chunks:
@@ -87,9 +87,8 @@ def export_session_core(sess, out_dir: str | os.PathLike, fmt: str = "parquet") 
 
     # Télémétrie du meilleur tour par pilote
     try:
-        best_per_driver = laps.groupby("Driver").apply(lambda df: df.pick_fastest())
         tele_chunks = []
-        for _, lap in best_per_driver.items():
+        for lap in _best_laps_by_driver(laps):
             try:
                 tel = lap.get_car_data().add_distance()
                 tel["Driver"] = lap["Driver"]
@@ -110,3 +109,22 @@ def export_session_core(sess, out_dir: str | os.PathLike, fmt: str = "parquet") 
 
 def session_identifier(year: int, event: str, session_code: str) -> str:
     return f"{year}_{event}_{session_code}"
+
+
+def _best_laps_by_driver(laps: pd.DataFrame):
+    """Retourne une liste de meilleurs tours (objets Lap) par pilote, sans groupby.apply.
+
+    Évite les FutureWarning pandas et reste compatible FastF1.
+    """
+    try:
+        drivers = laps["Driver"].dropna().unique().tolist()
+    except Exception:
+        drivers = []
+    bests = []
+    for d in drivers:
+        try:
+            # laps.pick_driver(d) retourne un Laps (DataFrame) filtré pour le pilote
+            bests.append(laps.pick_driver(d).pick_fastest())
+        except Exception:
+            continue
+    return bests
