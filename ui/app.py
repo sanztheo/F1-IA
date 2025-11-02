@@ -120,7 +120,10 @@ def main():
 
         st.subheader("Verdict")
         st.metric("Delta IA vs Référence (s)", value=f"{delta:.3f}", delta=f"seuil {thr:.2f}s")
-        st.success(verdict) if delta >= thr else st.warning(verdict)
+        if delta >= thr:
+            st.success(verdict)
+        else:
+            st.warning(verdict)
 
         st.subheader("Trajectoire sur le circuit")
         fig = go.Figure()
@@ -128,7 +131,7 @@ def main():
         fig.add_trace(go.Scatter(x=line[:, 0], y=line[:, 1], name="IA", mode="lines", line=dict(color="#E91E63", width=3)))
         fig.update_yaxes(scaleanchor="x", scaleratio=1)
         fig.update_layout(height=700, legend=dict(orientation="h"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.subheader("Profils vitesse")
         v1 = sim["v"]
@@ -139,7 +142,7 @@ def main():
         fig2.add_trace(go.Scatter(x=s1, y=v1, name="IA", mode="lines"))
         fig2.add_trace(go.Scatter(x=s2, y=v2, name="Référence", mode="lines"))
         fig2.update_layout(height=400, xaxis_title="Distance (m)", yaxis_title="Vitesse (m/s)")
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
 
         st.caption("Note: la référence ici est le centerline; pour une comparaison pilote gagnant, branchez les meilleurs tours FastF1.")
 
