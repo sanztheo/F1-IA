@@ -84,24 +84,24 @@ def main(config_path: str) -> None:
                 continue
             for ev_name in event_names:
                 for sess_code in tqdm(cfg.sessions, leave=False, desc="Sessions"):
-                try:
-                    sess = load_session(year, ev_name, sess_code)
-                except Exception as e:
-                    tqdm.write(f"Skip {year}-{ev_name}-{sess_code}: {e}")
-                    continue
+                    try:
+                        sess = load_session(year, ev_name, sess_code)
+                    except Exception as e:
+                        tqdm.write(f"Skip {year}-{ev_name}-{sess_code}: {e}")
+                        continue
 
-                sid = session_identifier(year, ev_name, sess_code)
-                out_dir = dirs["raw"] / "fastf1" / sid
-                try:
-                    m = export_session_core(sess, out_dir, fmt=cfg.storage_format)
-                    manifest["resources"].append({
-                        "provider": "fastf1",
-                        "session": sid,
-                        "path": str(out_dir),
-                        "tables": m.get("tables", []),
-                    })
-                except Exception as e:
-                    tqdm.write(f"Export error {sid}: {e}")
+                    sid = session_identifier(year, ev_name, sess_code)
+                    out_dir = dirs["raw"] / "fastf1" / sid
+                    try:
+                        m = export_session_core(sess, out_dir, fmt=cfg.storage_format)
+                        manifest["resources"].append({
+                            "provider": "fastf1",
+                            "session": sid,
+                            "path": str(out_dir),
+                            "tables": m.get("tables", []),
+                        })
+                    except Exception as e:
+                        tqdm.write(f"Export error {sid}: {e}")
 
     (cfg.data_dir / "resources.json").write_text(json.dumps(manifest, indent=2))
     print(f"Manifeste écrit: {cfg.data_dir / 'resources.json'}")
