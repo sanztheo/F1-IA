@@ -9,14 +9,13 @@ seasons:
 
 # Circuits ciblés (noms FastF1)
 tracks:
-  - Monaco
-  - Monza
-  - Silverstone
-  - Spa-Francorchamps
-  - Suzuka
-  - Barcelona
+  - Circuit de Monaco
+  - Autodromo Nazionale Monza
+  - Circuit de Spa-Francorchamps
 
-sessions: ["FP2", "Q", "R"]
+sessions: ["Q", "R"]
+
+reference_year: 2022
 
 # Paramètres modèle/optimisation
 optimization:
@@ -30,6 +29,10 @@ optimization:
 advanced:
   use_advanced: true
   iterations: 3
+
+evolution:
+  evaluations_per_circuit: 400
+  n_ctrl_points: 25
 
 # OpenF1 (optionnel)
 openf1:

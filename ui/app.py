@@ -1,215 +1,195 @@
 from __future__ import annotations
 
-import pathlib as _pl
 import sys
-from pathlib import Path as _Path
+from pathlib import Path
+import pathlib as _pl
+import logging
+from typing import Dict, Any, List
 
-# Assure l'import des paquets du projet quand Streamlit lance depuis `ui/`
-_ROOT = _Path(__file__).resolve().parents[1]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
 import numpy as np
 import pandas as pd
 import yaml
 import streamlit as st
 import plotly.graph_objects as go
-import logging
 
-from ml.inference import run_inference
-from ml.features.track_processing import curvature
-from simulation.lap_simulator import simulate_lap, speed_profile_from_curvature
+# Ajouter la racine du projet au PYTHONPATH quand lancé depuis ui/
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from replay.multicar_fastf1 import load_multicar
+from tracks.osm_tracks import fetch_track_outline, resample_linestring, outline_to_centerline
+from tracks.align import procrustes_2d, apply_similarity
+from simulation.lap_simulator import simulate_lap
 
 
-st.set_page_config(page_title="F1-IA Trajectoire Optimale", layout="wide")
+st.set_page_config(page_title="F1‑IA – Replay & IA Evolution", layout="wide")
 
-# Configure logger for terminal output
-_logger = logging.getLogger("f1ia.ui")
-if not _logger.handlers:
-    _handler = logging.StreamHandler()
-    _formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
-    _handler.setFormatter(_formatter)
-    _logger.addHandler(_handler)
-_logger.setLevel(logging.INFO)
+log = logging.getLogger("f1ia.ui")
+if not log.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    log.addHandler(h)
+log.setLevel(logging.INFO)
 
 
 @st.cache_data
-def load_cfg(path: str):
+def load_cfg(path: str = "config.yaml") -> Dict[str, Any]:
     return yaml.safe_load(_pl.Path(path).read_text())
 
 
+EVENT_MAP = {
+    "Circuit de Monaco": "Monaco Grand Prix",
+    "Autodromo Nazionale Monza": "Italian Grand Prix",
+    "Circuit de Spa-Francorchamps": "Belgian Grand Prix",
+}
+
+
+def make_animation(cars: List[Dict[str, Any]], track_xy: np.ndarray, fps: int = 20) -> go.Figure:
+    T = len(cars[0]["x"]) if cars else 0
+    fig = go.Figure()
+    # Piste (centerline) en fond
+    if len(track_xy):
+        fig.add_trace(go.Scatter(x=track_xy[:, 0], y=track_xy[:, 1], name="Piste", mode="lines", line=dict(color="#666", width=2)))
+
+    # Traces voitures (markers uniquement)
+    for car in cars:
+        fig.add_trace(go.Scatter(x=[car["x"][0]], y=[car["y"][0]], mode="markers", name=car["name"],
+                                 marker=dict(size=10, color=car["color"])) )
+
+    # Frames
+    frames = []
+    for i in range(T):
+        frame_data = []
+        # première trace est la piste -> on ne la met pas dans frames
+        for car in cars:
+            frame_data.append(go.Scatter(x=[car["x"][i]], y=[car["y"][i]], mode="markers",
+                                         marker=dict(size=10, color=car["color"])) )
+        frames.append(go.Frame(data=frame_data, name=str(i)))
+
+    fig.frames = frames
+    # Boutons lecture
+    frame_duration = int(1000 / max(1, fps))
+    fig.update_layout(
+        height=750,
+        legend=dict(orientation="h"),
+        updatemenus=[
+            {
+                "type": "buttons",
+                "showactive": False,
+                "buttons": [
+                    {"label": "Play", "method": "animate", "args": [None, {"frame": {"duration": frame_duration, "redraw": False}, "fromcurrent": True, "transition": {"duration": 0}}]},
+                    {"label": "Pause", "method": "animate", "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate", "transition": {"duration": 0}}]},
+                ],
+            }
+        ],
+        sliders=[{
+            "currentvalue": {"prefix": "t: ", "visible": True},
+            "pad": {"t": 50},
+            "steps": [{"args": [[str(i)], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}], "label": str(i), "method": "animate"} for i in range(T)]
+        }]
+    )
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+    return fig
+
+
 def main():
-    st.title("F1-IA – Trajectoire optimale")
-    cfg = load_cfg("config.yaml")
+    cfg = load_cfg()
+    circuits = cfg.get("tracks", ["Circuit de Spa-Francorchamps"])
+    year = int(cfg.get("reference_year", 2022))
 
-    # Découverte des sessions disponibles directement depuis le disque
-    data_dir = _pl.Path(cfg.get("data_dir", "data"))
-    sessions_root = data_dir / "raw" / "fastf1"
-    av_dirs_all = sorted([p.name for p in sessions_root.glob("*_*_*")])
-    # Ne proposer que les sessions qui possèdent des positions.*
-    av_dirs = []
-    for name in av_dirs_all:
-        p = sessions_root / name
-        if (p / "positions.parquet").exists() or (p / "positions.csv").exists():
-            av_dirs.append(name)
-    if not av_dirs:
-        st.error("Aucune session exploitable (positions.*) trouvée dans data/raw/fastf1.")
-        st.caption("Exécutez la collecte ou sélectionnez une autre saison/circuit.")
-        st.stop()
+    st.title("F1‑IA – Replay multi‑voitures + Trajectoire IA (CMA‑ES)")
+    tab1, tab2 = st.tabs(["Replay réel", "IA Evolution"])
 
-    # Parser en (year, event, code)
-    parsed = []
-    for name in av_dirs:
-        # format attendu: YEAR_EventName_SessionCode (EventName peut contenir des espaces)
-        parts = name.split("_")
-        if len(parts) < 3:
-            continue
-        year = parts[0]
-        sess_code = parts[-1]
-        event = "_".join(parts[1:-1]).replace("_", " ")
-        parsed.append((name, int(year), event, sess_code))
+    with tab1:
+        c1, c2, c3 = st.columns([2,1,1])
+        with c1:
+            circuit = st.selectbox("Circuit", circuits, index=0)
+        with c2:
+            year_sel = st.number_input("Année", value=year, min_value=2018, max_value=2025, step=1)
+        with c3:
+            sess_code = st.selectbox("Session", ["Q", "R"], index=1)
 
-    if not parsed:
-        st.error("Impossible d'interpréter les dossiers de sessions.")
-        st.stop()
+        n_cars = st.slider("Nombre de voitures", 3, 10, 10)
+        fps = st.select_slider("Vitesse (fps)", options=[10, 15, 20, 30, 40], value=20)
 
-    years = sorted({y for _, y, _, _ in parsed})
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        year_sel = st.selectbox("Saison", years, index=len(years) - 1)
-    events = sorted({ev for _, y, ev, _ in parsed if y == year_sel})
-    with c2:
-        event_sel = st.selectbox("Événement", events, index=0)
-    sess_codes = sorted({sc for _, y, ev, sc in parsed if y == year_sel and ev == event_sel})
-    with c3:
-        sess_sel = st.selectbox("Session", sess_codes, index=sess_codes.index("R") if "R" in sess_codes else 0)
+        if st.button("Charger le replay", type="primary"):
+            with st.spinner("Chargement des données pilotes (FastF1)…"):
+                event = EVENT_MAP.get(circuit, circuit)
+                data = load_multicar(int(year_sel), event, sess_code, n_cars)
+                # Piste via OSM et alignement sur données XY
+                outline = fetch_track_outline(circuit)
+                track_xy = resample_linestring(outline, 2000)
+                if track_xy.size == 0 or data.get("centerline") is None:
+                    aligned = data.get("centerline") if data.get("centerline") is not None else np.zeros((0, 2))
+                else:
+                    try:
+                        centerline = outline_to_centerline(track_xy)
+                        R, s, t = procrustes_2d(data["centerline"], centerline)
+                        aligned = apply_similarity(R, s, t, centerline)
+                    except Exception:
+                        aligned = data["centerline"]
+                st.session_state["replay_payload"] = {"cars": data["cars"], "track": aligned}
 
-    # Reconstruire exactement le dossier
-    # Retrouver le nom exact (avec espaces) tel que dans le dossier
-    candidates = [name for name, y, ev, sc in parsed if y == year_sel and ev == event_sel and sc == sess_sel]
-    session_id = candidates[0] if candidates else None
-    st.caption(f"Session: {session_id}")
+        if "replay_payload" in st.session_state:
+            cars = st.session_state["replay_payload"]["cars"]
+            track = st.session_state["replay_payload"]["track"]
+            fig = make_animation(cars, track, fps=fps)
+            st.plotly_chart(fig, use_container_width=True)
 
-    run_button = st.button("Lancer la simulation", type="primary")
-
-    if run_button and session_id:
-        with st.spinner("Calcul de la trajectoire IA..."):
+    with tab2:
+        st.write("Expérimenter une trajectoire IA par évolution (CMA‑ES).")
+        st.caption("Cette démo effectue des évaluations locales seulement quand vous cliquez. Budget défini dans config.yaml.")
+        circuit2 = st.selectbox("Circuit pour l'IA", circuits, index=0, key="c2")
+        event2 = EVENT_MAP.get(circuit2, circuit2)
+        year2 = st.number_input("Année données (pour centerline)", value=year, min_value=2018, max_value=2025, step=1, key="y2")
+        if st.button("Calculer une trajectoire IA (aperçu)"):
             try:
-                out = run_inference("config.yaml", session_id)
-            except FileNotFoundError as e:
-                _logger.error("Data missing: %s", e)
-                st.error("Données manquantes pour cette session. Vérifiez la collecte et l'entraînement.")
-                st.caption(str(e))
-            else:
-                center = out["centerline"]
-                line = out["racing_line"]
-                kappa = curvature(line)
-                mu = np.median(out["mu"]) if isinstance(out.get("mu"), np.ndarray) else 1.6
-                v_lim = speed_profile_from_curvature(kappa, mu)
-                sim = simulate_lap(line, kappa, v_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
-                kappa_ref = curvature(center)
-                v_ref_lim = speed_profile_from_curvature(kappa_ref, mu)
-                sim_ref = simulate_lap(center, kappa_ref, v_ref_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
-                st.session_state["sim_payload"] = {"center": center, "line": line, "sim": sim, "sim_ref": sim_ref}
-                if "sim_state" not in st.session_state:
-                    st.session_state.sim_state = {"t": 0.0, "playing": False, "speed": 1.0, "last": None}
-
-    # Affichage persistant de la simulation si disponible
-    if "sim_payload" in st.session_state:
-        payload = st.session_state["sim_payload"]
-        center = payload["center"]
-        line = payload["line"]
-        sim = payload["sim"]
-        sim_ref = payload["sim_ref"]
-
-        st.subheader("Simulation animée")
-        colA, colB, colC, colD = st.columns([1,1,2,2])
-        T_max = float(max(sim.get("t", [sim["time_s"]])[-1], sim_ref.get("t", [sim_ref["time_s"]])[-1]))
-        if "sim_state" not in st.session_state:
-            st.session_state.sim_state = {"t": 0.0, "playing": False, "speed": 1.0, "last": None}
-        with colA:
-            if st.button("▶ Play" if not st.session_state.sim_state["playing"] else "⏸ Pause", key="playpause"):
-                st.session_state.sim_state["playing"] = not st.session_state.sim_state["playing"]
-                st.session_state.sim_state["last"] = None
-        with colB:
-            if st.button("⏹ Reset", key="reset"):
-                st.session_state.sim_state["t"] = 0.0
-                st.session_state.sim_state["playing"] = False
-                st.session_state.sim_state["last"] = None
-        with colC:
-            speed = st.select_slider("Vitesse", options=[0.25, 0.5, 1.0, 2.0, 4.0], value=st.session_state.sim_state["speed"], key="speed")
-            st.session_state.sim_state["speed"] = speed
-        with colD:
-            t_val = st.slider("Temps (s)", min_value=0.0, max_value=T_max, value=float(st.session_state.sim_state["t"]), step=max(T_max/1000.0, 0.05), key="tslider")
-            st.session_state.sim_state["t"] = float(t_val)
-
-        # Avancer le temps si en lecture (basé sur temps réel)
-        import time as _time
-        now = _time.time()
-        if st.session_state.sim_state["playing"]:
-            last = st.session_state.sim_state.get("last")
-            if last is not None:
-                dt_wall = now - float(last)
-                st.session_state.sim_state["t"] = float(min(T_max, st.session_state.sim_state["t"] + dt_wall * float(st.session_state.sim_state["speed"])) )
-            st.session_state.sim_state["last"] = now
-
-        # Indices au temps courant
-        def _idx(tarr, t):
-            return int(np.clip(np.searchsorted(tarr, t, side="right") - 1, 0, len(tarr)-1))
-        t_ia = sim.get("t")
-        t_rf = sim_ref.get("t")
-        i_ia = _idx(t_ia, st.session_state.sim_state["t"]) if t_ia is not None else len(line)-1
-        i_rf = _idx(t_rf, st.session_state.sim_state["t"]) if t_rf is not None else len(center)-1
-
-        # Trajectoires progressives
-        st.subheader("Trajectoire sur le circuit")
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=center[:, 0], y=center[:, 1], name="Centerline", mode="lines", line=dict(color="#666", width=1)))
-        fig.add_trace(go.Scatter(x=line[: i_ia+1, 0], y=line[: i_ia+1, 1], name="IA (progression)", mode="lines", line=dict(color="#E91E63", width=4)))
-        fig.add_trace(go.Scatter(x=center[: i_rf+1, 0], y=center[: i_rf+1, 1], name="Réf (progression)", mode="lines", line=dict(color="#00BCD4", width=2)))
-        fig.add_trace(go.Scatter(x=[line[i_ia, 0]], y=[line[i_ia, 1]], mode="markers", name="IA car", marker=dict(color="#E91E63", size=10, symbol="triangle-up")))
-        fig.add_trace(go.Scatter(x=[center[i_rf, 0]], y=[center[i_rf, 1]], mode="markers", name="Ref car", marker=dict(color="#00BCD4", size=10)))
-        fig.update_yaxes(scaleanchor="x", scaleratio=1)
-        fig.update_layout(height=700, legend=dict(orientation="h"))
-        st.plotly_chart(fig, width="stretch")
-
-        # Verdict basé sur temps total (indépendant de t courant)
-        delta = sim_ref["time_s"] - sim["time_s"]
-        thr = float(cfg["optimization"].get("delta_win_threshold_s", 0.15))
-        verdict = "Victoire probable: OUI" if delta >= thr else "Victoire probable: NON"
-        st.subheader("Verdict")
-        st.metric("Delta IA vs Référence (s)", value=f"{delta:.3f}", delta=f"seuil {thr:.2f}s")
-        if delta >= thr:
-            st.success(verdict)
-        else:
-            st.warning(verdict)
-
-        # Profils vitesse partiels (jusqu'à t courant)
-        st.subheader("Profils vitesse")
-        v1 = sim["v"]
-        v2 = sim_ref["v"]
-        s1 = np.cumsum(sim["ds"]) - sim["ds"][0]
-        s2 = np.cumsum(sim_ref["ds"]) - sim_ref["ds"][0]
-        fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(x=s1[: i_ia+1], y=v1[: i_ia+1], name="IA", mode="lines"))
-        fig2.add_trace(go.Scatter(x=s2[: i_rf+1], y=v2[: i_rf+1], name="Référence", mode="lines"))
-        fig2.update_layout(height=400, xaxis_title="Distance (m)", yaxis_title="Vitesse (m/s)")
-        st.plotly_chart(fig2, width="stretch")
-
-        # Rafraîchissement ~30 FPS si en lecture
-        if st.session_state.sim_state["playing"] and st.session_state.sim_state["t"] < T_max:
-            import time as _time
-            _time.sleep(1/30.0)
-            try:
-                st.rerun()
+                from evolution.cmaes_trainer import optimize_line_cmaes, CMAESConfig
             except Exception:
-                # compat: older/newer Streamlit
+                st.error("Installez la dépendance 'cmaes' dans votre venv.")
+                return
+            with st.spinner("Prépare la piste et lance CMA‑ES (aperçu)…"):
+                # Construire centerline depuis FastF1 (plus sûr) sinon OSM
                 try:
-                    st.experimental_rerun()  # type: ignore[attr-defined]
+                    data = load_multicar(int(year2), event2, "Q", 3)
+                    center = data.get("centerline")
                 except Exception:
-                    pass
+                    center = None
+                if center is None or len(center) == 0:
+                    outline = fetch_track_outline(circuit2)
+                    center = outline_to_centerline(resample_linestring(outline, 2000))
+                if center is None or len(center) == 0:
+                    st.error("Impossible d'obtenir la géométrie de piste.")
+                    return
 
-    st.info("Étapes: 1) Collecte 2) Entraînement 3) Simulation. Utilisez votre venv.")
+                evol = cfg.get("evolution", {})
+                conf = CMAESConfig(evaluations=int(evol.get("evaluations_per_circuit", 400)),
+                                   n_ctrl=int(evol.get("n_ctrl_points", 25)),
+                                   track_half_width=float(cfg["optimization"]["track_half_width_m"]))
+
+                def sim_fn(xy):
+                    from ml.features.track_processing import curvature
+                    k = curvature(xy)
+                    v_lim = np.sqrt(np.maximum(1e-3, (12.0 * 9.80665) / (np.abs(k) + 1e-6)))
+                    out = simulate_lap(xy, k, v_lim, a_long_max=float(cfg["optimization"]["a_long_max"]))
+                    return out["time_s"], out
+
+                res = optimize_line_cmaes(center, sim_fn, conf)
+                st.session_state["evo_payload"] = {"center": center, "ia": res["best_line"], "time": res["best_time"], "hist": res["history"]}
+
+        if "evo_payload" in st.session_state:
+            payload = st.session_state["evo_payload"]
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=payload["center"][:, 0], y=payload["center"][:, 1], name="Centerline", mode="lines", line=dict(color="#777")))
+            fig.add_trace(go.Scatter(x=payload["ia"][:, 0], y=payload["ia"][:, 1], name="IA", mode="lines", line=dict(color="#E91E63", width=4)))
+            fig.update_yaxes(scaleanchor="x", scaleratio=1)
+            fig.update_layout(height=700, legend=dict(orientation="h"))
+            st.plotly_chart(fig, use_container_width=True)
+            st.metric("Temps simulé IA (s)", f"{payload['time']:.3f}")
+            st.line_chart(pd.DataFrame({"meilleur": payload["hist"]}).cummin())
 
 
 if __name__ == "__main__":
     main()
+

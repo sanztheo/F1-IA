@@ -53,18 +53,18 @@ python -m ml.training_advanced --config config.yaml
 ```
 Produit `data/models/lateral_envelope.json` et `data/models/vlim_model.joblib`.
 
-## 3) UI + Simulation
+## 3) UI – Replay multi‑voitures + IA évolution
 
 ```
 streamlit run ui/app.py
 ```
-Choisissez la session et cliquez sur « Lancer la simulation ».
+- Onglet « Replay réel »: choisir un des 3 circuits (Monaco, Monza, Spa), l’année (réf. 2022) et la session (Q/R), puis « Charger le replay ». L’animation Plotly affiche jusqu’à 10 voitures réelles et la piste (OSM alignée).
+- Onglet « IA Evolution »: « Calculer une trajectoire IA (aperçu) » lance CMA‑ES (budget dans `config.yaml`) et trace la ligne IA vs centerline.
 
 ## Notes techniques
-- L'optimisation de ligne est une convexification pragmatique: offsets latéraux sur le centerline, objectif lissage + proxy de temps. Pour un modèle plus physique (vitesses couplées), enrichir `ml/models/line_optimizer.py`.
-- Un optimiseur itératif « two‑step » (ligne ↔ vitesse) est utilisé si `advanced.use_advanced: true` dans `config.yaml`.
-- La simulation utilise des passes avant/arrière pour respecter l'accélération longitudinale et les limites latérales.
-- Pour comparer à un vainqueur réel, chargez la télémétrie du meilleur tour via FastF1 et ajoutez le tracé « référence » dans `ui/app.py`.
+- Géométrie piste: fetch OSM (leisure=racetrack / highway=raceway) via OSMnx, extraction d’un contour et alignement (Procrustes) sur les XY FastF1 pour échelle/orientation correctes.
+- Replay 10 voitures: FastF1 `get_pos_data()` + interpolation temporelle à ~20 Hz. Animation via Plotly frames (Play/Pause intégrés, slider).
+- IA évolution: offsets latéraux par splines (`evolution/cmaes_trainer.py`) et simulateur avant/arrière (`simulation/lap_simulator.py`).
 
 ## Dépannage
 - Correction d'événement hasardeuse ("Correcting user input …"): évitée. Le collecteur filtre désormais via le calendrier officiel. Si un `track` n'est pas trouvé pour une année, il est indiqué comme "Skip … non présent au calendrier".
