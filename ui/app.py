@@ -99,73 +99,83 @@ def main():
                 _logger.error("Data missing: %s", e)
                 st.error("Données manquantes pour cette session. Vérifiez la collecte et l'entraînement.")
                 st.caption(str(e))
-                return
-            center = out["centerline"]
-            line = out["racing_line"]
+            else:
+                center = out["centerline"]
+                line = out["racing_line"]
+                kappa = curvature(line)
+                mu = np.median(out["mu"]) if isinstance(out.get("mu"), np.ndarray) else 1.6
+                v_lim = speed_profile_from_curvature(kappa, mu)
+                sim = simulate_lap(line, kappa, v_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
+                kappa_ref = curvature(center)
+                v_ref_lim = speed_profile_from_curvature(kappa_ref, mu)
+                sim_ref = simulate_lap(center, kappa_ref, v_ref_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
+                st.session_state["sim_payload"] = {"center": center, "line": line, "sim": sim, "sim_ref": sim_ref}
+                if "sim_state" not in st.session_state:
+                    st.session_state.sim_state = {"t": 0.0, "playing": False, "speed": 1.0, "last": None}
 
-            # Simulation temps au tour sur la ligne IA
-            kappa = curvature(line)
-            mu = np.median(out["mu"]) if isinstance(out.get("mu"), np.ndarray) else 1.6
-            v_lim = speed_profile_from_curvature(kappa, mu)
-            sim = simulate_lap(line, kappa, v_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
+    # Affichage persistant de la simulation si disponible
+    if "sim_payload" in st.session_state:
+        payload = st.session_state["sim_payload"]
+        center = payload["center"]
+        line = payload["line"]
+        sim = payload["sim"]
+        sim_ref = payload["sim_ref"]
 
-            # Placeholder pour la ligne de référence (centerline avec vitesses limites)
-            kappa_ref = curvature(center)
-            v_ref_lim = speed_profile_from_curvature(kappa_ref, mu)
-            sim_ref = simulate_lap(center, kappa_ref, v_ref_lim, a_long_max=cfg["optimization"].get("a_long_max", 9.0))
-
-        # Animation controls
         st.subheader("Simulation animée")
         colA, colB, colC, colD = st.columns([1,1,2,2])
         T_max = float(max(sim.get("t", [sim["time_s"]])[-1], sim_ref.get("t", [sim_ref["time_s"]])[-1]))
         if "sim_state" not in st.session_state:
-            st.session_state.sim_state = {"t": 0.0, "playing": False, "speed": 1.0}
+            st.session_state.sim_state = {"t": 0.0, "playing": False, "speed": 1.0, "last": None}
         with colA:
-            if st.button("▶ Play" if not st.session_state.sim_state["playing"] else "⏸ Pause"):
+            if st.button("▶ Play" if not st.session_state.sim_state["playing"] else "⏸ Pause", key="playpause"):
                 st.session_state.sim_state["playing"] = not st.session_state.sim_state["playing"]
+                st.session_state.sim_state["last"] = None
         with colB:
-            if st.button("⏹ Reset"):
+            if st.button("⏹ Reset", key="reset"):
                 st.session_state.sim_state["t"] = 0.0
                 st.session_state.sim_state["playing"] = False
+                st.session_state.sim_state["last"] = None
         with colC:
-            speed = st.select_slider("Vitesse", options=[0.25, 0.5, 1.0, 2.0, 4.0], value=st.session_state.sim_state["speed"])
+            speed = st.select_slider("Vitesse", options=[0.25, 0.5, 1.0, 2.0, 4.0], value=st.session_state.sim_state["speed"], key="speed")
             st.session_state.sim_state["speed"] = speed
         with colD:
-            t_val = st.slider("Temps (s)", min_value=0.0, max_value=T_max, value=float(st.session_state.sim_state["t"]), step=max(T_max/1000.0, 0.05))
+            t_val = st.slider("Temps (s)", min_value=0.0, max_value=T_max, value=float(st.session_state.sim_state["t"]), step=max(T_max/1000.0, 0.05), key="tslider")
             st.session_state.sim_state["t"] = float(t_val)
 
-        # Compute positions for current time
-        def _idx(tarr, t):
-            import numpy as np
-            return int(np.clip(np.searchsorted(tarr, t, side="right") - 1, 0, len(tarr)-1))
+        # Avancer le temps si en lecture (basé sur temps réel)
+        import time as _time
+        now = _time.time()
+        if st.session_state.sim_state["playing"]:
+            last = st.session_state.sim_state.get("last")
+            if last is not None:
+                dt_wall = now - float(last)
+                st.session_state.sim_state["t"] = float(min(T_max, st.session_state.sim_state["t"] + dt_wall * float(st.session_state.sim_state["speed"])) )
+            st.session_state.sim_state["last"] = now
 
+        # Indices au temps courant
+        def _idx(tarr, t):
+            return int(np.clip(np.searchsorted(tarr, t, side="right") - 1, 0, len(tarr)-1))
         t_ia = sim.get("t")
         t_rf = sim_ref.get("t")
         i_ia = _idx(t_ia, st.session_state.sim_state["t"]) if t_ia is not None else len(line)-1
         i_rf = _idx(t_rf, st.session_state.sim_state["t"]) if t_rf is not None else len(center)-1
 
-        # Plot with moving markers
+        # Trajectoires progressives
         st.subheader("Trajectoire sur le circuit")
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=center[:, 0], y=center[:, 1], name="Centerline", mode="lines", line=dict(color="#888", width=2)))
-        fig.add_trace(go.Scatter(x=line[:, 0], y=line[:, 1], name="IA", mode="lines", line=dict(color="#E91E63", width=3)))
-        fig.add_trace(go.Scatter(x=[center[i_rf, 0]], y=[center[i_rf, 1]], mode="markers", name="Ref car", marker=dict(color="#00BCD4", size=10)))
+        fig.add_trace(go.Scatter(x=center[:, 0], y=center[:, 1], name="Centerline", mode="lines", line=dict(color="#666", width=1)))
+        fig.add_trace(go.Scatter(x=line[: i_ia+1, 0], y=line[: i_ia+1, 1], name="IA (progression)", mode="lines", line=dict(color="#E91E63", width=4)))
+        fig.add_trace(go.Scatter(x=center[: i_rf+1, 0], y=center[: i_rf+1, 1], name="Réf (progression)", mode="lines", line=dict(color="#00BCD4", width=2)))
         fig.add_trace(go.Scatter(x=[line[i_ia, 0]], y=[line[i_ia, 1]], mode="markers", name="IA car", marker=dict(color="#E91E63", size=10, symbol="triangle-up")))
+        fig.add_trace(go.Scatter(x=[center[i_rf, 0]], y=[center[i_rf, 1]], mode="markers", name="Ref car", marker=dict(color="#00BCD4", size=10)))
         fig.update_yaxes(scaleanchor="x", scaleratio=1)
         fig.update_layout(height=700, legend=dict(orientation="h"))
         st.plotly_chart(fig, width="stretch")
 
-        # Auto-play loop (non bloquant): advance time and rerun
-        if st.session_state.sim_state["playing"] and st.session_state.sim_state["t"] < T_max:
-            import time as _time
-            _time.sleep(1/30.0)
-            st.session_state.sim_state["t"] = float(min(T_max, st.session_state.sim_state["t"] + (1/30.0)*st.session_state.sim_state["speed"]))
-            st.experimental_rerun()
-
+        # Verdict basé sur temps total (indépendant de t courant)
         delta = sim_ref["time_s"] - sim["time_s"]
         thr = float(cfg["optimization"].get("delta_win_threshold_s", 0.15))
         verdict = "Victoire probable: OUI" if delta >= thr else "Victoire probable: NON"
-
         st.subheader("Verdict")
         st.metric("Delta IA vs Référence (s)", value=f"{delta:.3f}", delta=f"seuil {thr:.2f}s")
         if delta >= thr:
@@ -173,18 +183,23 @@ def main():
         else:
             st.warning(verdict)
 
+        # Profils vitesse partiels (jusqu'à t courant)
         st.subheader("Profils vitesse")
         v1 = sim["v"]
         v2 = sim_ref["v"]
         s1 = np.cumsum(sim["ds"]) - sim["ds"][0]
         s2 = np.cumsum(sim_ref["ds"]) - sim_ref["ds"][0]
         fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(x=s1, y=v1, name="IA", mode="lines"))
-        fig2.add_trace(go.Scatter(x=s2, y=v2, name="Référence", mode="lines"))
+        fig2.add_trace(go.Scatter(x=s1[: i_ia+1], y=v1[: i_ia+1], name="IA", mode="lines"))
+        fig2.add_trace(go.Scatter(x=s2[: i_rf+1], y=v2[: i_rf+1], name="Référence", mode="lines"))
         fig2.update_layout(height=400, xaxis_title="Distance (m)", yaxis_title="Vitesse (m/s)")
         st.plotly_chart(fig2, width="stretch")
 
-        st.caption("Note: la référence ici est le centerline; pour une comparaison pilote gagnant, branchez les meilleurs tours FastF1.")
+        # Rafraîchissement ~30 FPS si en lecture
+        if st.session_state.sim_state["playing"] and st.session_state.sim_state["t"] < T_max:
+            import time as _time
+            _time.sleep(1/30.0)
+            st.experimental_rerun()
 
     st.info("Étapes: 1) Collecte 2) Entraînement 3) Simulation. Utilisez votre venv.")
 
