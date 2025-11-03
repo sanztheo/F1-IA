@@ -267,9 +267,29 @@ class TrackEnv:
             v_ref0 = v
             over0 = 0.0
         # frein auto proportionnel si sur‑vitesse notable; bornage doux
-        brake_auto = float(np.clip(over0 / 12.0, 0.0, 1.0))  # 12 m/s (~43 km/h) -> 1.0
+        # Anticipation mur: distance libre effective en avant (éventail, poids vers l'avant)
+        try:
+            dfan = self._raycast_fan(num=7, fov_deg=120.0, max_r=max(self.sensor_max, self.half_w*8.0))
+            fwd_clear = float(np.max(dfan[2:5])) if dfan.size >= 5 else float(np.max(dfan))
+        except Exception:
+            fwd_clear = self.half_w * 4.0
+        # marge de sécurité faible (autorise de frôler le mur)
+        margin = 1.0 + 0.0008 * v * v
+        a_brake_max = 12.0
+        k_thresh = 0.003  # rayon ≲ 333 m
+        use_stop = (k0 >= k_thresh) or (over0 > 2.0)
+        if use_stop and fwd_clear > 0.5:
+            a_needed = v * v / (2.0 * max(1e-3, (fwd_clear - margin)))
+        else:
+            a_needed = 0.0
+        brake_stop = float(np.clip(a_needed / a_brake_max, 0.0, 1.0))
+        brake_auto = float(np.clip(max(over0 / 12.0, brake_stop), 0.0, 1.0))  # 12 m/s (~43 km/h) -> 1.0
         brake_eff = max(brake_cmd, 0.7 * brake_auto)
-        throttle_eff = throttle * (1.0 / (1.0 + 0.5 * over0))  # réduit le gaz en sur‑vitesse
+        # One‑pedal: si frein actif, couper l'accélérateur
+        if brake_eff > 0.05:
+            throttle_eff = 0.0
+        else:
+            throttle_eff = throttle * (1.0 / (1.0 + 0.5 * over0))  # réduit le gaz en sur‑vitesse
         ax = (11.0 * (throttle_eff) - 12.0 * brake_eff) - self.params.drag * v * v  # ~0-100 in ~2.6s, brake up to ~6g equivalent via limit below
         # lateral accel limit with aero: a_lat_max(v) ≈ (1.8 + k*v^2) * g, k~=0.00058 so that ~5.5g @ 80 m/s
         g = 9.80665
@@ -329,7 +349,7 @@ class TrackEnv:
         if self.drs_zones:
             s_frac = float(s_here / max(1e-6, self.length))
             in_zone = any(a <= s_frac <= b for a,b in self.drs_zones)
-            if in_zone and throttle > 0.7 and brake < 0.1 and abs(lat_err) < self.half_w*0.5 and abs(head_err) < np.deg2rad(10):
+            if in_zone and throttle_eff > 0.7 and brake_eff < 0.1 and abs(lat_err) < self.half_w*0.5 and abs(head_err) < np.deg2rad(10):
                 drs = True
         # si DRS actif, réduire légèrement l'appui latéral
         if drs:
@@ -350,10 +370,10 @@ class TrackEnv:
             pen += 0.0030 * over * over
             # Favoriser le freinage plutôt que le "coast" quand on est trop vite
             if over > 1.0:
-                if brake < 0.1 and throttle > 0.2:
-                    pen += 0.0020 * over * (0.5 + throttle)
+                if brake_eff < 0.1 and throttle_eff > 0.2:
+                    pen += 0.0020 * over * (0.5 + throttle_eff)
                 # petit bonus si on freine modérément en approche ("trail braking")
-                pen -= 0.0008 * over * min(0.8, brake)
+                pen -= 0.0008 * over * min(0.8, brake_eff)
             # exposer pour HUD/teacher
             self.state["v_ref"] = v_ref
             self.state["overspeed"] = over
@@ -361,9 +381,7 @@ class TrackEnv:
             self.state["v_ref"] = 0.0
             self.state["overspeed"] = 0.0
         done = not on
-        # exposer état pour HUD et progression robuste
-        self.state["throttle"] = throttle
-        self.state["brake"] = brake
+        # exposer état pour HUD et progression robuste (déjà mis à jour plus haut)
         # progression basée sur distance parcourue (robuste aux sauts KDT)
         prog_travel = float(self._s_travel / max(1e-6, self.length))
         if not lap_done:

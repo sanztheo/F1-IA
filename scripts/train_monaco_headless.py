@@ -107,6 +107,14 @@ def load_centerline_monaco() -> np.ndarray:
     return xy
 
 
+def _eval_chunk(args):
+    center, half_w, chunk_pols, horizon, drs = args
+    out = []
+    for _p in chunk_pols:
+        out.append(evaluate_once(center, half_w, _p, horizon, drs, True))
+    return out
+
+
 def main():
     print("Headless Monaco – population=400, workers=8. Ctrl-C pour arrêter.")
     center = load_centerline_monaco()
@@ -157,13 +165,19 @@ def main():
         while True:
             print(f"Gen {gen} — evaluating {len(policies)} agents ...", flush=True)
             fits: List[Tuple[float, float, float]] = []
+            # Évaluation par paquets (fonction top‑level pour être picklable sur macOS)
+            chunk = max(1, len(policies) // (WORKERS))
+            slabs: List[List[Dict[str, np.ndarray]]] = [policies[i:i+chunk] for i in range(0, len(policies), chunk)]
+            args_list = [(center, HALF_WIDTH, slab, HORIZON, drs) for slab in slabs]
             with ProcessPoolExecutor(max_workers=WORKERS) as ex:
-                futs = [ex.submit(evaluate_once, center, HALF_WIDTH, p, HORIZON, drs, True) for p in policies]
-                for i, f in enumerate(as_completed(futs), 1):
-                    fit, lap, prog = f.result()
-                    fits.append((fit, lap, prog))
-                    if i % max(1, len(policies)//10) == 0:
-                        print(f"  {i}/{len(policies)} done", flush=True)
+                futs = [ex.submit(_eval_chunk, a) for a in args_list]
+                done = 0
+                for f in as_completed(futs):
+                    res = f.result()
+                    fits.extend(res)
+                    done += len(res)
+                    if done % max(1, len(policies)//10) == 0:
+                        print(f"  {done}/{len(policies)} done", flush=True)
             # élites et stats
             order = np.argsort([f for f, _, _ in fits])[::-1]
             elites_idx = order[: max(5, POP // 10)]
