@@ -49,8 +49,19 @@ def main():
     args = ap.parse_args()
 
     center = load_centerline_monaco()
-    env = TrackEnv(center, half_width=args.halfwidth, drs_zones=[(0.00, 0.06)])
-    obs_dim = 3 + 5
+    # Aligner avec le headless: obs Frenet + lookahead (pas de raycasts dans l'obs)
+    env = TrackEnv(
+        center,
+        half_width=args.halfwidth,
+        drs_zones=[(0.00, 0.06)],
+        obs_mode="frenet",
+        lookahead_k=10,
+        lookahead_step=20,
+        include_rays_in_obs=False,
+    )
+    # Déterminer dynamiquement la dimension d'observation
+    env.reset(0.0, random_start=True)
+    obs_dim = int(env.get_obs().size)
 
     X = np.zeros((args.samples, obs_dim), dtype=np.float32)
     Y = np.zeros((args.samples, 3), dtype=np.float32)
@@ -83,4 +94,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
