@@ -328,9 +328,20 @@ class TrackEnv:
             a_lat_max = min(6.5 * g, (1.8 + 0.00058 * v * v) * g)
             v_ref = float(np.sqrt(a_lat_max / k_abs))
             over = max(0.0, v - v_ref)
-            pen += 0.0015 * over * over
+            # sur‑vitesse: pénalité plus forte
+            pen += 0.0030 * over * over
+            # Favoriser le freinage plutôt que le "coast" quand on est trop vite
+            if over > 1.0:
+                if brake < 0.1 and throttle > 0.2:
+                    pen += 0.0020 * over * (0.5 + throttle)
+                # petit bonus si on freine modérément en approche ("trail braking")
+                pen -= 0.0008 * over * min(0.8, brake)
+            # exposer pour HUD/teacher
+            self.state["v_ref"] = v_ref
+            self.state["overspeed"] = over
         except Exception:
-            pass
+            self.state["v_ref"] = 0.0
+            self.state["overspeed"] = 0.0
         done = not on
         # exposer état pour HUD et progression robuste
         self.state["throttle"] = throttle
@@ -342,7 +353,8 @@ class TrackEnv:
         else:
             prog_travel = 1.0
         reward = (ds_prog - pen) if on else -1.0
-        info = {"s": s_here, "on": on, "lap": int(self.state["lap"]), "t_lap": float(self.state["t_lap"]), "lap_done": lap_done, "drs": drs, "progress_travel": prog_travel}
+        info = {"s": s_here, "on": on, "lap": int(self.state["lap"]), "t_lap": float(self.state["t_lap"]), "lap_done": lap_done, "drs": drs, "progress_travel": prog_travel,
+                "v_ref": float(self.state.get("v_ref", 0.0)), "overspeed": float(self.state.get("overspeed", 0.0))}
         if lap_time is not None:
             info["lap_time"] = lap_time
         return self.get_obs(), reward, done, info

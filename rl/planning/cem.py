@@ -33,6 +33,18 @@ def plan_cem(env: TrackEnv, horizon: int = 20, iters: int = 3,
             aa = np.array([np.clip(a[0], -1.0, 1.0), np.clip(a[1], 0.0, 1.0), np.clip(a[2], 0.0, 1.0)], dtype=np.float32)
             _, r, done, info = env.step(aa)
             cost = -float(r)
+            # privilégier le frein si sur‑vitesse
+            v_ref = float(info.get("v_ref", 0.0))
+            over = float(info.get("overspeed", 0.0))
+            if over > 0.5:  # au‑delà d'~2 km/h
+                thr = float(aa[1])
+                brk = float(aa[2])
+                # pénaliser le throttle en excès et le "coast" (thr haut, brk bas)
+                cost += 0.8 * over * max(0.0, thr - 0.2)
+                if brk < 0.1 and thr > 0.2:
+                    cost += 0.6 * over
+                # bonus léger pour freins modérés en approche (trail braking)
+                cost -= 0.4 * over * min(0.8, brk)
             if not info.get("on", True):
                 cost += 10.0  # big penalty off track
                 total_cost += cost
@@ -60,4 +72,3 @@ def plan_cem(env: TrackEnv, horizon: int = 20, iters: int = 3,
         mean[:, 2] = np.clip(mean[:, 2], 0.0, 0.7)
 
     return np.array([np.clip(mean[0, 0], -1.0, 1.0), np.clip(mean[0, 1], 0.0, 1.0), np.clip(mean[0, 2], 0.0, 1.0)], dtype=np.float32)
-

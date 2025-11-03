@@ -177,7 +177,9 @@ def main():
             brk = float(env.state.get("brake", 0.0))
             steer = float(env.state.get("th", 0.0))
             prog = float(env.state.get("progress", 0.0)) / max(1e-6, env.length)
-            hud1 = f"Gen={gen}  Lap={info.get('lap',0)}  t_lap={info.get('t_lap',0.0):.2f}s  v={v*3.6:.1f} km/h  prog={prog*100:.1f}%  fps~{int(1/max(1e-3,dt))}"
+            vref = float(info.get("v_ref", 0.0))
+            over = float(info.get("overspeed", 0.0))
+            hud1 = f"Gen={gen}  Lap={info.get('lap',0)}  t_lap={info.get('t_lap',0.0):.2f}s  v={v*3.6:.1f} km/h  v_ref={vref*3.6:.1f}  over={over*3.6:.1f}  prog={prog*100:.1f}%  fps~{int(1/max(1e-3,dt))}"
             hud2 = f"steer={np.rad2deg(steer):.1f}°  throttle={thr:.2f}  brake={brk:.2f}"
             viewer.draw_text(hud1, (10,10))
             viewer.draw_text(hud2, (10,30))
