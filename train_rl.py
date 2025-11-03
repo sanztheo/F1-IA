@@ -90,10 +90,11 @@ def _build_env_matching(center: np.ndarray, drs, half_w: float, expected_in: int
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Viewer: rejoue la meilleure policy depuis le checkpoint (par défaut)")
-    ap.add_argument("--track", default="Circuit de Spa-Francorchamps")
+    ap = argparse.ArgumentParser(description="Viewer Monaco: rejoue la meilleure policy depuis le checkpoint")
+    # Par défaut: Monaco + SVG
+    ap.add_argument("--track", default="Circuit de Monaco")
     ap.add_argument("--year", type=int, default=2022)
-    ap.add_argument("--svg", type=str, default=None, help="Optional SVG centerline path (e.g., svg/monaco.svg)")
+    ap.add_argument("--svg", type=str, default="svg/monaco.svg", help="SVG du circuit (Monaco par défaut)")
     ap.add_argument("--pop", type=int, default=200)
     ap.add_argument("--sigma", type=float, default=0.05)
     ap.add_argument("--halfwidth", type=float, default=10.0)
@@ -129,8 +130,9 @@ def main():
     
     rng = np.random.default_rng(0)
     obs_dim = 3 + 5
-    viewer = Viewer(title=f"RL Evolution – {args.track} {args.year}")
-    run_id = f"{args.track.replace(' ', '_')}_{args.year}"
+    viewer = Viewer(title=f"Replay – Monaco")
+    # Checkpoint: toujours Monaco_SVG
+    run_id = "Monaco_SVG"
     ck_dir = _ensure_dir(f"data/evolution/{run_id}")
 
     gen = 0
@@ -139,7 +141,7 @@ def main():
     # Mode VIEW (par défaut): charger la meilleure policy depuis checkpoint
     fleet_policies, gen, best_overall_time, best_policy = _load_ck(ck_dir, args.pop)
     if not args.evolve:
-        viewer = Viewer(title=f"Replay – {args.track} {args.year}")
+        viewer = Viewer(title=f"Replay – Monaco (best policy)")
         # choisir la best_policy si dispo, sinon évaluer vite fait
         if best_policy is None:
             if fleet_policies:
@@ -170,8 +172,16 @@ def main():
             rays = env.ray_endpoints(num=getattr(env, "sensor_count", 17), fov_deg=getattr(env, "sensor_fov", 180.0), max_r=getattr(env, "sensor_max", 250.0))
             viewer.draw_rays((env.state["x"], env.state["y"]), rays, color=(255,210,90))
             viewer.center_on((env.state["x"], env.state["y"]))
-            viewer.draw_text(f"Replay best | lap={info.get('lap',0)} t_lap={info.get('t_lap',0.0):.2f}s | fps~{int(1/max(1e-3,dt))}", (10,10))
-            viewer.draw_text("ESC pour quitter", (10,30))
+            v = float(env.state.get("v", 0.0))
+            thr = float(env.state.get("throttle", 0.0))
+            brk = float(env.state.get("brake", 0.0))
+            steer = float(env.state.get("th", 0.0))
+            prog = float(env.state.get("progress", 0.0)) / max(1e-6, env.length)
+            hud1 = f"Lap={info.get('lap',0)} t_lap={info.get('t_lap',0.0):.2f}s  v={v*3.6:.1f} km/h  prog={prog*100:.1f}%  fps~{int(1/max(1e-3,dt))}"
+            hud2 = f"steer={np.rad2deg(steer):.1f}°  throttle={thr:.2f}  brake={brk:.2f}"
+            viewer.draw_text(hud1, (10,10))
+            viewer.draw_text(hud2, (10,30))
+            viewer.draw_text("ESC pour quitter", (10,50))
             if done and info.get("lap",0) < 1:
                 # si sortie de piste: réinitialiser pour continuer la démo
                 obs = env.reset(0.0, random_start=True)
