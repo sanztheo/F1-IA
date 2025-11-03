@@ -47,7 +47,18 @@ HIDDEN = (64, 64)  # MLP plus large pour de meilleures perfs
 
 
 def evaluate_once(center: np.ndarray, half_w: float, pol: Dict[str, np.ndarray], max_steps: int, drs: list[tuple[float,float]], random_start: bool = True) -> Tuple[float, float, float]:
-    env = TrackEnv(center, half_width=half_w, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+    env = TrackEnv(
+        center,
+        half_width=half_w,
+        drs_zones=drs,
+        obs_mode="frenet",
+        lookahead_k=10,
+        lookahead_step=20,
+        sensor_count=33,
+        sensor_fov_deg=270.0,
+        sensor_max_m=250.0,
+        include_rays_in_obs=True,
+    )
     obs = env.reset(0.0, random_start=random_start)
     total = 0.0
     best_lap = float('inf')
@@ -103,7 +114,18 @@ def main():
 
     rng = np.random.default_rng(0)
     # probe env for obs size in frenet mode
-    _probe = TrackEnv(center, half_width=HALF_WIDTH, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+    _probe = TrackEnv(
+        center,
+        half_width=HALF_WIDTH,
+        drs_zones=drs,
+        obs_mode="frenet",
+        lookahead_k=10,
+        lookahead_step=20,
+        sensor_count=33,
+        sensor_fov_deg=270.0,
+        sensor_max_m=250.0,
+        include_rays_in_obs=True,
+    )
     _probe.reset(0.0, random_start=True)
     obs_dim = int(_probe.get_obs().size)
     sizes = (obs_dim, *HIDDEN, 3)

@@ -119,8 +119,9 @@ def main():
         if best_policy is None:
             best_policy = init_mlp((obs_dim, 64, 64, 3), rng)
 
-        # Simulation d'une seule voiture (replay best)
-        env = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs)
+        # Simulation d'une seule voiture (replay best) – même espace d'observation que le headless
+        env = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs,
+                       obs_mode="frenet", lookahead_k=10, lookahead_step=20)
         obs = env.reset(0.0)
         t = 0
         while True:

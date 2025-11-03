@@ -63,7 +63,18 @@ def enumerate_tracks() -> List[Tuple[str, np.ndarray]]:
 
 
 def evaluate_once(center: np.ndarray, half_w: float, pol: Dict[str, np.ndarray], max_steps: int, drs: list[tuple[float,float]]) -> Tuple[float, float, float]:
-    env = TrackEnv(center, half_width=half_w, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+    env = TrackEnv(
+        center,
+        half_width=half_w,
+        drs_zones=drs,
+        obs_mode="frenet",
+        lookahead_k=10,
+        lookahead_step=20,
+        sensor_count=33,
+        sensor_fov_deg=270.0,
+        sensor_max_m=250.0,
+        include_rays_in_obs=True,
+    )
     obs = env.reset(0.0, random_start=True)
     total = 0.0
     best_lap = float('inf')
@@ -101,7 +112,8 @@ def main():
     SIGMA = 0.10
 
     # probe obs_dim on first track
-    probe_env = TrackEnv(tracks[0][1], half_width=HALF_W, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+    probe_env = TrackEnv(tracks[0][1], half_width=HALF_W, obs_mode="frenet", lookahead_k=10, lookahead_step=20,
+                         sensor_count=33, sensor_fov_deg=270.0, sensor_max_m=250.0, include_rays_in_obs=True)
     probe_env.reset(0.0, random_start=True)
     obs_dim = int(probe_env.get_obs().size)
 
@@ -184,4 +196,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
