@@ -18,25 +18,29 @@ Important: aucune installation automatique. Utilisez votre venv et installez `re
 - `evolution`: `evaluations_per_circuit: 400`, `n_ctrl_points: 25`.
 - `optimization.track_half_width_m`: largeur piste (pour contraintes IA).
 
-## Lancer l’UI
+## Workflow sans Streamlit (Pygame)
+
+1) Préparer les maps (centerlines)
 
 ```
-streamlit run ui/app.py
+python scripts/fetch_maps.py --year 2022 --track "Circuit de Monaco" --track "Autodromo Nazionale Monza" --track "Circuit de Spa-Francorchamps"
 ```
 
-- Onglet « Replay (optionnel) »:
-  - Circuit, année (par défaut 2022), session (Q ou R), puis « Charger le replay ».
-  - L’animation Plotly affiche la piste (OSM alignée) et jusqu’à 10 voitures réelles synchronisées.
-- Onglet « IA Evolution (population) »:
-  - Choisis le circuit et l’année.
-  - Paramètre « Taille population » (200/300/400) et « Générations à exécuter maintenant » (1/2/5/10).
-  - Clique « Exécuter et sauvegarder (checkpoint) » pour lancer N générations; la meilleure ligne et l’historique s’affichent.
-  - Tu peux relancer plus tard: la progression est reprise automatiquement (checkpoint) pour le même run_id.
+2) Lancer l’évolution (fenêtre Pygame)
+
+```
+python run_evolution.py --track "Circuit de Spa-Francorchamps" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
+```
+
+- Contrôles: 
+  - Molette = zoom, clic gauche + glisser = déplacer
+  - Espace = auto‑play (enchaîne les générations), N = exécuter le prochain lot de générations, Échap = quitter
+  - Les checkpoints sont sauvegardés automatiquement: vous pouvez fermer et relancer, la progression est reprise
 
 ## Détails techniques
 - Piste OSM: `osmnx` + `shapely`; extraction `leisure=racetrack` (fallback `highway=raceway`) puis simplification et rééchantillonnage.
 - Alignement piste↔données: Procrustes 2D (similarité) sur le centerline dérivé des XY FastF1.
-- Replay: `fastf1.get_pos_data()` → interpolation à ~20 Hz → animation Plotly (frames Play/Pause + slider natifs).
+- Replay (facultatif): `replay/multicar_fastf1.py` reste disponible pour générer des données multi‑voitures (utile pour vérifier la piste).
 - IA: offsets latéraux paramétrés par `n_ctrl_points` (splines implicites), évolution par population (sélection + mutations), évaluation via `simulation/lap_simulator.py`.
 
 ## Dépannage rapide
@@ -46,7 +50,7 @@ streamlit run ui/app.py
 - Les checkpoints sont stockés dans `data/evolution/<run_id>/pop_checkpoint.npz`. Le run_id est basé sur `<Circuit>_<Année>`.
 
 ## Arborescence utile
-- `ui/app.py` – UI Streamlit (replay + IA évolution population).
+- `run_evolution.py` – boucle Pygame pour lancer et visualiser l’évolution.
 - `replay/multicar_fastf1.py` – chargement et synchronisation de 10 voitures (replay et fallback géométrie).
 - `tracks/fetch.py` – fetch + cache (data/tracks/*.npy) du centerline.
 - `tracks/osm_tracks.py` – extraction/sampling OSM de la piste.

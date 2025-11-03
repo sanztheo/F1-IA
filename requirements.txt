@@ -8,6 +8,5 @@ geopandas>=0.14
 osmnx>=1.9
 networkx>=3.2
 pyproj>=3.6
-plotly>=5.24
-streamlit>=1.39
+pygame>=2.6
 pyyaml>=6.0
