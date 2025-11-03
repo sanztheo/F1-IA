@@ -20,25 +20,33 @@ def _ensure_dir(p: str) -> Path:
     return d
 
 
-def _save_ck(ck_dir: Path, gen: int, policies: List[Dict[str, np.ndarray]], best_time: float) -> None:
+def _save_ck(ck_dir: Path, gen: int, policies: List[Dict[str, np.ndarray]], best_time: float, best_policy: Dict[str, np.ndarray] | None = None) -> None:
     arr = np.array(policies, dtype=object)
-    np.savez(ck_dir / "rl_checkpoint.npz", gen=np.array([gen]), best_time=np.array([best_time]), policies=arr, allow_pickle=True)
+    if best_policy is not None:
+        np.savez(ck_dir / "rl_checkpoint.npz", gen=np.array([gen]), best_time=np.array([best_time]), policies=arr, best_policy=np.array([best_policy], dtype=object), allow_pickle=True)
+    else:
+        np.savez(ck_dir / "rl_checkpoint.npz", gen=np.array([gen]), best_time=np.array([best_time]), policies=arr, allow_pickle=True)
 
 
-def _load_ck(ck_dir: Path, pop: int, obs_dim: int, rng: np.random.Generator) -> Tuple[List[Dict[str, np.ndarray]], int, float]:
+def _load_ck(ck_dir: Path, pop: int, obs_dim: np.random.Generator | None = None) -> Tuple[List[Dict[str, np.ndarray]], int, float, Dict[str, np.ndarray] | None]:
     f = ck_dir / "rl_checkpoint.npz"
     if not f.exists():
-        return [], 0, float('inf')
+        return [], 0, float('inf'), None
     try:
         z = np.load(f, allow_pickle=True)
         gen = int(z["gen"][0]) if "gen" in z else 0
         best_time = float(z.get("best_time", np.array([float('inf')]))[0])
         pols = z["policies"].tolist()
+        best_pol = None
+        if "best_policy" in z:
+            bp = z["best_policy"].tolist()
+            if isinstance(bp, list) and bp:
+                best_pol = bp[0]
         if not isinstance(pols, list) or not pols:
-            return [], gen, best_time
-        return pols[:pop], gen, best_time
+            return [], gen, best_time, best_pol
+        return pols[:pop], gen, best_time, best_pol
     except Exception:
-        return [], 0, float('inf')
+        return [], 0, float('inf'), None
 
 
 def act(policy: Dict[str, np.ndarray], obs: np.ndarray) -> np.ndarray:
@@ -69,7 +77,7 @@ def evaluate(center: np.ndarray, half_w: float, params: Dict[str, np.ndarray], m
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Trackmania-like RL with population evolution (no Streamlit)")
+    ap = argparse.ArgumentParser(description="Viewer: rejoue la meilleure policy depuis le checkpoint (par défaut)")
     ap.add_argument("--track", default="Circuit de Spa-Francorchamps")
     ap.add_argument("--year", type=int, default=2022)
     ap.add_argument("--svg", type=str, default=None, help="Optional SVG centerline path (e.g., svg/monaco.svg)")
@@ -77,6 +85,7 @@ def main():
     ap.add_argument("--sigma", type=float, default=0.05)
     ap.add_argument("--halfwidth", type=float, default=10.0)
     ap.add_argument("--horizon", type=int, default=1200)
+    ap.add_argument("--evolve", action="store_true", help="(Optionnel) relancer l'évolution visuelle (ancien comportement)")
     # no --gens, resume is automatic via checkpoints
     args = ap.parse_args()
 
@@ -93,7 +102,17 @@ def main():
             center = get_centerline(args.track, args.year)
     else:
         center = get_centerline(args.track, args.year)
-    env = TrackEnv(center, half_width=args.halfwidth)
+    # Simple DRS zone par défaut: ligne droite des stands (0.00–0.06)
+    def default_drs(track_name: str, length: float) -> list[tuple[float,float]]:
+        name = track_name.lower()
+        if 'monaco' in name:
+            return [(0.00, 0.06)]
+        return []
+
+    drs = default_drs(args.track, float(np.linalg.norm(center[1:] - center[:-1], axis=1).sum()))
+    # Pré‑calcul des bords de piste pour le rendu (évite shapely à chaque frame)
+    _edges_env = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs)
+    pre_left, pre_right = _edges_env.edges()
     
     rng = np.random.default_rng(0)
     obs_dim = 3 + 5
@@ -104,8 +123,46 @@ def main():
     gen = 0
     follow = True
 
-    # Build initial population policies (or resume from checkpoint)
-    fleet_policies, gen, best_overall_time = _load_ck(ck_dir, args.pop, obs_dim, rng)
+    # Mode VIEW (par défaut): charger la meilleure policy depuis checkpoint
+    fleet_policies, gen, best_overall_time, best_policy = _load_ck(ck_dir, args.pop)
+    if not args.evolve:
+        viewer = Viewer(title=f"Replay – {args.track} {args.year}")
+        # choisir la best_policy si dispo, sinon évaluer vite fait
+        if best_policy is None:
+            if fleet_policies:
+                scores = [(evaluate(center, args.halfwidth, p, max_steps=args.horizon), p) for p in fleet_policies]
+                scores.sort(key=lambda x: x[0], reverse=True)
+                best_policy = scores[0][1]
+        # si toujours rien, init une policy neutre
+        if best_policy is None:
+            best_policy = init_mlp((obs_dim, 64, 64, 3), rng)
+
+        # Simulation d'une seule voiture (replay best)
+        env = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs)
+        obs = env.reset(0.0)
+        t = 0
+        while True:
+            running, _, _ = viewer.handle_events()
+            if not running:
+                break
+            dt = viewer.tick(60)
+            viewer.clear()
+            viewer.draw_polyline_fast(pre_left, color=(60, 140, 60), width=2, min_px=3.0)
+            viewer.draw_polyline_fast(pre_right, color=(60, 140, 60), width=2, min_px=3.0)
+            viewer.draw_polyline_fast(center, color=(230, 230, 230), width=1, min_px=3.0)
+            a = act(best_policy, obs)
+            obs, r, done, info = env.step(a)
+            viewer.draw_car_rect(env.state["x"], env.state["y"], env.state["th"], length=5.6, width=2.0, color=(80,170,250))
+            rays = env.ray_endpoints(num=7, fov_deg=120.0, max_r=args.halfwidth*2.0)
+            viewer.draw_rays((env.state["x"], env.state["y"]), rays, color=(255,210,90))
+            viewer.center_on((env.state["x"], env.state["y"]))
+            viewer.draw_text(f"Replay best | lap={info.get('lap',0)} t_lap={info.get('t_lap',0.0):.2f}s | fps~{int(1/max(1e-3,dt))}", (10,10))
+            viewer.draw_text("ESC pour quitter", (10,30))
+            if done and info.get("lap",0) < 1:
+                # si sortie de piste: réinitialiser pour continuer la démo
+                obs = env.reset(0.0, random_start=True)
+            viewer.flip()
+        return
     if not fleet_policies:
         fleet_policies = [init_mlp((obs_dim, 32, 3), rng) for _ in range(args.pop)]
         best_overall_time = float('inf')
@@ -113,12 +170,13 @@ def main():
         k = max(1, args.pop // 10)
         for i in range(k):
             fleet_policies[i] = {"__fullsend__": True}
+    # Mode EVOLVE (optionnel avec --evolve): comportement précédent
     # Spawn agents for current generation
     def spawn_fleet(policies: List[Dict[str, np.ndarray]]):
         fl = []
         colors = [(50 + (i*8)%200, 200 - (i*7)%150, 120 + (i*5)%120) for i in range(len(policies))]
         for i, pol in enumerate(policies):
-            e = TrackEnv(center, half_width=args.halfwidth)
+            e = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs)
             obs = e.reset(0.0)
             fl.append({"env": e, "obs": obs, "pol": pol, "alive": True, "fit": 0.0, "lap_time": float('inf'), "color": colors[i]})
         return fl
@@ -133,9 +191,8 @@ def main():
         dt = viewer.tick(60)
         viewer.clear()
         # Track with width (edges)
-        left, right = TrackEnv(center, half_width=args.halfwidth).edges()
-        viewer.draw_polyline_fast(left, color=(60, 140, 60), width=2, min_px=3.0)
-        viewer.draw_polyline_fast(right, color=(60, 140, 60), width=2, min_px=3.0)
+        viewer.draw_polyline_fast(pre_left, color=(60, 140, 60), width=2, min_px=3.0)
+        viewer.draw_polyline_fast(pre_right, color=(60, 140, 60), width=2, min_px=3.0)
         viewer.draw_polyline_fast(center, color=(230, 230, 230), width=1, min_px=3.0)
 
         # Step fleet
@@ -168,6 +225,11 @@ def main():
             viewer.draw_rays(pos, rays, color=(255,210,90))
             if follow:
                 viewer.center_on(pos)
+            # HUD barres throttle/brake
+            thr = float(ag["env"].state.get("throttle", 0.0))
+            brk = float(ag["env"].state.get("brake", 0.0))
+            viewer.draw_text(f"Throttle: {thr:.2f}", (10, 180))
+            viewer.draw_text(f"Brake:    {brk:.2f}", (10, 198))
         step_in_gen += 1
 
         # Status text

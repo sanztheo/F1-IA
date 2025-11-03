@@ -31,11 +31,21 @@ Ou utiliser ton SVG Monaco et l’échelle réelle 3 337 m:
 python scripts/use_svg.py --svg svg/monaco.svg --length 3337 --out data/tracks/monaco.npy
 ```
 
-2) Lancer l’évolution Trackmania‑like (Pygame, voiture visible)
+2) Visualiser la meilleure policy (Pygame, voiture unique)
 
 Le plus simple:
 ```
-python train_rl.py --track "Circuit de Monaco" --year 2022 --pop 200 --halfwidth 10 --sigma 0.05
+# Affiche la meilleure policy sauvegardée (checkpoint). Si aucune, init par défaut.
+python train_rl.py --track "Circuit de Monaco" --svg svg/monaco.svg --halfwidth 10
+```
+
+3) Headless (entraînement long, sans affichage)
+```
+# 1) Simple et sans paramètres (Monaco SVG uniquement)
+python scripts/train_monaco_headless.py
+
+# 2) Avancé (paramétrable)
+python headless_evolve.py --track "Circuit de Monaco" --svg svg/monaco.svg --pop 400 --halfwidth 10 --horizon 1500 --generations 50 --workers 8
 ```
 
 Par défaut: circuit « Circuit de Spa‑Francorchamps », année 2022, pop=200, halfwidth=10, sigma=0.05.
@@ -48,7 +58,7 @@ python train_rl.py --track "Circuit de Monaco" --svg svg/monaco.svg --halfwidth 
   - Molette: zoom vers le curseur  •  Drag: déplacer
   - C / V: caméra suivre / libre
   - G / H: afficher / cacher les ghosts (points bleus)
-  - T / P: démarrer / pause entraînement
+  - (Rejoue uniquement; pour entraîner, utiliser le script headless ci‑dessus)
   - ESC: quitter
 - HUD: génération, meilleur score, FPS, vitesse, progression
 

@@ -27,7 +27,7 @@ class CarParams:
 
 
 class TrackEnv:
-    def __init__(self, centerline: np.ndarray, half_width: float = 6.0, dt: float = 1/60.0):
+    def __init__(self, centerline: np.ndarray, half_width: float = 6.0, dt: float = 1/60.0, drs_zones: list[tuple[float,float]] | None = None):
         assert centerline.ndim == 2 and centerline.shape[1] == 2
         self.center = centerline.astype(float)
         self.half_w = float(half_width)
@@ -68,6 +68,11 @@ class TrackEnv:
         # Portique départ/arrivée (ligne perpendiculaire au centre au début)
         self.gate_o = self.center[0]
         self.gate_n = self.normals[0]
+        # Checkpoints sectorisés (par défaut ~33% et ~66% du tour)
+        self.cp_gates: list[tuple[np.ndarray, np.ndarray]] = []
+        for frac in (1.0/3.0, 2.0/3.0):
+            idx_cp = int(max(0, min(len(self.center) - 1, np.searchsorted(self.s, frac * self.length))))
+            self.cp_gates.append((self.center[idx_cp], self.normals[idx_cp]))
 
         # état voiture
         self.params = CarParams()
@@ -75,6 +80,8 @@ class TrackEnv:
         self._prev_pos = None
         self._s_travel = 0.0
         self._gate_prev = None
+        # DRS zones (fractions 0..1 sur la longueur)
+        self.drs_zones = drs_zones or []
 
     def reset(self, s0: float = 0.0, random_start: bool = False) -> np.ndarray:
         # position initiale au début de la piste
@@ -231,6 +238,7 @@ class TrackEnv:
         self._s_travel += ds_forward
         self._prev_pos = pos.copy()
         lap_done = False
+        lap_time = None
         # Détection passage portique (changement de signe par rapport à la normale de gate)
         gate_now = self._gate_side(pos)
         crossed_gate = (self._gate_prev is not None) and (gate_now * self._gate_prev < 0)
@@ -238,6 +246,8 @@ class TrackEnv:
         if self._s_travel >= self.length * 0.8 and crossed_gate:
             self.state["lap"] = int(self.state.get("lap", 0)) + 1
             lap_done = True
+            # conserver le temps de tour avant réinit pour reporting
+            lap_time = float(self.state.get("t_lap", 0.0))
             self._s_travel -= self.length
             self.state["t_lap"] = 0.0
 
@@ -246,11 +256,34 @@ class TrackEnv:
         n = self.normals[idx]
         lat_err = float(np.dot(pos - self.center[idx], n))
         head_err = _wrap_angle(th - self.tang_angles[idx])
+        # DRS (simplifié): si en zone DRS, throttle élevé et sans frein → moins de traînée mais moins d'appui
+        drs = False
+        if self.drs_zones:
+            s_frac = float(s_here / max(1e-6, self.length))
+            in_zone = any(a <= s_frac <= b for a,b in self.drs_zones)
+            if in_zone and throttle > 0.7 and brake < 0.1 and abs(lat_err) < self.half_w*0.5 and abs(head_err) < np.deg2rad(10):
+                drs = True
+        # si DRS actif, réduire légèrement l'appui latéral
+        if drs:
+            a_lat_max *= 0.9
+        head_pen_factor = 0.7 if drs else 1.0
         # pénalités stabilité
-        pen = 0.01 * abs(lat_err) + 0.005 * abs(head_err) + 0.0005 * v * v
+        pen = 0.01 * abs(lat_err) + 0.005 * abs(head_err) * head_pen_factor + 0.0005 * v * v
         done = not on
+        # exposer état pour HUD et progression robuste
+        self.state["throttle"] = throttle
+        self.state["brake"] = brake
+        # progression basée sur distance parcourue (robuste aux sauts KDT)
+        prog_travel = float(self._s_travel / max(1e-6, self.length))
+        if not lap_done:
+            prog_travel = float(min(prog_travel, 0.999))
+        else:
+            prog_travel = 1.0
         reward = (ds_prog - pen) if on else -1.0
-        return self.get_obs(), reward, done, {"s": s_here, "on": on, "lap": int(self.state["lap"]), "t_lap": float(self.state["t_lap"]), "lap_done": lap_done}
+        info = {"s": s_here, "on": on, "lap": int(self.state["lap"]), "t_lap": float(self.state["t_lap"]), "lap_done": lap_done, "drs": drs, "progress_travel": prog_travel}
+        if lap_time is not None:
+            info["lap_time"] = lap_time
+        return self.get_obs(), reward, done, info
 
     def _gate_side(self, p: np.ndarray) -> float:
         # signe de la projection du point par rapport à la normale du portique
