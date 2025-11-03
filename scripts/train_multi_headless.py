@@ -70,10 +70,10 @@ def evaluate_once(center: np.ndarray, half_w: float, pol: Dict[str, np.ndarray],
         obs_mode="frenet",
         lookahead_k=10,
         lookahead_step=20,
-        sensor_count=49,
-        sensor_fov_deg=270.0,
+        sensor_count=25,
+        sensor_fov_deg=180.0,
         sensor_max_m=250.0,
-        include_rays_in_obs=True,
+        include_rays_in_obs=False,
     )
     obs = env.reset(0.0, random_start=True)
     total = 0.0
@@ -113,7 +113,7 @@ def main():
 
     # probe obs_dim on first track
     probe_env = TrackEnv(tracks[0][1], half_width=HALF_W, obs_mode="frenet", lookahead_k=10, lookahead_step=20,
-                         sensor_count=49, sensor_fov_deg=270.0, sensor_max_m=250.0, include_rays_in_obs=True)
+                         sensor_count=25, sensor_fov_deg=180.0, sensor_max_m=250.0, include_rays_in_obs=False)
     probe_env.reset(0.0, random_start=True)
     obs_dim = int(probe_env.get_obs().size)
 

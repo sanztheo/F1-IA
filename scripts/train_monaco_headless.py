@@ -54,10 +54,10 @@ def evaluate_once(center: np.ndarray, half_w: float, pol: Dict[str, np.ndarray],
         obs_mode="frenet",
         lookahead_k=10,
         lookahead_step=20,
-        sensor_count=49,
-        sensor_fov_deg=270.0,
+        sensor_count=25,
+        sensor_fov_deg=180.0,
         sensor_max_m=250.0,
-        include_rays_in_obs=True,
+        include_rays_in_obs=False,
     )
     obs = env.reset(0.0, random_start=random_start)
     total = 0.0
@@ -121,10 +121,10 @@ def main():
         obs_mode="frenet",
         lookahead_k=10,
         lookahead_step=20,
-        sensor_count=49,
-        sensor_fov_deg=270.0,
+        sensor_count=25,
+        sensor_fov_deg=180.0,
         sensor_max_m=250.0,
-        include_rays_in_obs=True,
+        include_rays_in_obs=False,
     )
     _probe.reset(0.0, random_start=True)
     obs_dim = int(_probe.get_obs().size)
