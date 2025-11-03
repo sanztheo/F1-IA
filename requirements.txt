@@ -11,4 +11,3 @@ pyproj>=3.6
 plotly>=5.24
 streamlit>=1.39
 pyyaml>=6.0
-cmaes>=0.10

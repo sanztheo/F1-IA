@@ -5,3 +5,5 @@ __pycache__/
 data/raw/**
 data/processed/**
 !data/**/.gitkeep
+data/evolution/**
+data/tracks/*.npy
