@@ -18,7 +18,7 @@ Important: aucune installation automatique. Utilisez votre venv et installez `re
 - `evolution`: `evaluations_per_circuit: 400`, `n_ctrl_points: 25`.
 - `optimization.track_half_width_m`: largeur piste (pour contraintes IA).
 
-## Workflow sans Streamlit (Pygame)
+## Workflow Monaco (simplifié)
 
 1) Préparer les maps (centerlines)
 
@@ -31,28 +31,17 @@ Ou utiliser ton SVG Monaco et l’échelle réelle 3 337 m:
 python scripts/use_svg.py --svg svg/monaco.svg --length 3337 --out data/tracks/monaco.npy
 ```
 
-2) Visualiser la meilleure policy (Pygame, voiture unique)
-
-Le plus simple:
+2) Entraîner (headless infini, Monaco SVG uniquement)
 ```
-# Affiche la meilleure policy sauvegardée (checkpoint). Si aucune, init par défaut.
-python train_rl.py --track "Circuit de Monaco" --svg svg/monaco.svg --halfwidth 10
-```
-
-3) Headless (entraînement long, sans affichage)
-```
-# 1) Simple et sans paramètres (Monaco SVG uniquement)
 python scripts/train_monaco_headless.py
-
-# 2) Avancé (paramétrable)
-python headless_evolve.py --track "Circuit de Monaco" --svg svg/monaco.svg --pop 400 --halfwidth 10 --horizon 1500 --generations 50 --workers 8
 ```
 
-Par défaut: circuit « Circuit de Spa‑Francorchamps », année 2022, pop=200, halfwidth=10, sigma=0.05.
-Avec ton SVG Monaco:
+3) Visualiser la meilleure policy (Pygame, voiture unique)
 ```
 python train_rl.py --track "Circuit de Monaco" --svg svg/monaco.svg --halfwidth 10
 ```
+
+Le viewer utilise la best_policy enregistrée; si aucune existe, il initialise une policy par défaut.
 
 - Contrôles (affichés en haut‑gauche dans la fenêtre):
   - Molette: zoom vers le curseur  •  Drag: déplacer
@@ -72,22 +61,7 @@ Reprise automatique
 - Accélération latérale avec aéro: `a_lat_max(v) ≈ (1.8 + 0.00058 v²) g`, bornée à 6.5 g.
 - Monaco: longueur 3 337 m; largeur typique ~10 m (option `--halfwidth`).
 
-3) (Option avancée) Évolution d’offsets de trajectoire
-
-```
-python run_evolution.py --track "Circuit de Monaco" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
-```
-
-Exemples équivalents pour les autres circuits:
-```
-python run_evolution.py --track "Autodromo Nazionale Monza" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
-python run_evolution.py --track "Circuit de Spa-Francorchamps" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
-```
-
-- Contrôles: 
-  - Molette = zoom, clic gauche + glisser = déplacer
-  - Espace = auto‑play (enchaîne les générations), N = exécuter le prochain lot de générations, Échap = quitter
-  - Les checkpoints sont sauvegardés automatiquement: vous pouvez fermer et relancer, la progression est reprise
+Contrôles viewer: molette=zoom, drag=déplacer, ESC=quitter
 
 ## Détails techniques
 - Piste OSM: `osmnx` + `shapely`; extraction `leisure=racetrack` (fallback `highway=raceway`) puis simplification et rééchantillonnage.
@@ -102,13 +76,9 @@ python run_evolution.py --track "Circuit de Spa-Francorchamps" --year 2022 --pop
 - Les checkpoints sont stockés dans `data/evolution/<run_id>/pop_checkpoint.npz`. Le run_id est basé sur `<Circuit>_<Année>`.
 
 ## Arborescence utile
-- `run_evolution.py` – boucle Pygame pour lancer et visualiser l’évolution.
-- `replay/multicar_fastf1.py` – chargement et synchronisation de 10 voitures (replay et fallback géométrie).
-- `tracks/fetch.py` – fetch + cache (data/tracks/*.npy) du centerline.
-- `tracks/osm_tracks.py` – extraction/sampling OSM de la piste.
-- `tracks/align.py` – alignement Procrustes 2D.
-- `evolution/population.py` – moteur d’évolution population (checkpoint/reprise).
-- `simulation/lap_simulator.py` – simulateur de tour (passes avant/arrière).
+- `scripts/train_monaco_headless.py` – entraînement Monaco (unique, infini).
+- `train_rl.py` – viewer de la meilleure policy.
+- `scripts/distill_teacher.py` – teacher CEM + distillation (optionnel).
 
 ## Git / données
 - `data/` est gardé vide (`.gitkeep`). Les caches/exports lourds ne sont pas versionnés.
