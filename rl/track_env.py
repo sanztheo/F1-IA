@@ -104,6 +104,21 @@ class TrackEnv:
         self._gate_prev = self._gate_side(self._prev_pos)
         return self.get_obs()
 
+    # -------- snapshot/restore for planning (teacher) --------
+    def snapshot(self) -> Dict[str, Any]:
+        return {
+            "state": dict(self.state),
+            "_prev_pos": None if self._prev_pos is None else self._prev_pos.copy(),
+            "_s_travel": float(self._s_travel),
+            "_gate_prev": None if self._gate_prev is None else float(self._gate_prev),
+        }
+
+    def restore(self, snap: Dict[str, Any]) -> None:
+        self.state = dict(snap.get("state", {}))
+        self._prev_pos = None if snap.get("_prev_pos") is None else np.array(snap["_prev_pos"], dtype=float)
+        self._s_travel = float(snap.get("_s_travel", 0.0))
+        self._gate_prev = snap.get("_gate_prev", None)
+
     def get_obs(self) -> np.ndarray:
         # erreurs par rapport au centerline
         pos = np.array([self.state["x"], self.state["y"]])

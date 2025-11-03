@@ -112,3 +112,11 @@ python run_evolution.py --track "Circuit de Spa-Francorchamps" --year 2022 --pop
 
 ## Git / données
 - `data/` est gardé vide (`.gitkeep`). Les caches/exports lourds ne sont pas versionnés.
+- Optionnel – Teacher CEM + distillation (accélère l’apprentissage d’une bonne policy)
+```
+# génère un dataset (obs→actions teacher) et ajuste un MLP
+python scripts/distill_teacher.py --samples 50000 --epochs 5
+
+# ensuite, visualise la meilleure policy distillée
+python train_rl.py --track "Circuit de Monaco" --svg svg/monaco.svg --halfwidth 10
+```
