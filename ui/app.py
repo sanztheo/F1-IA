@@ -20,7 +20,8 @@ if str(ROOT) not in sys.path:
 from replay.multicar_fastf1 import load_multicar
 from tracks.osm_tracks import fetch_track_outline, resample_linestring, outline_to_centerline
 from tracks.align import procrustes_2d, apply_similarity
-from simulation.lap_simulator import simulate_lap
+from tracks.fetch import get_centerline
+from evolution.population import run_evolution, EvoConfig
 
 
 st.set_page_config(page_title="F1‑IA – Replay & IA Evolution", layout="wide")
@@ -99,7 +100,7 @@ def main():
     year = int(cfg.get("reference_year", 2022))
 
     st.title("F1‑IA – Replay multi‑voitures + Trajectoire IA (CMA‑ES)")
-    tab1, tab2 = st.tabs(["Replay réel", "IA Evolution"])
+    tab1, tab2 = st.tabs(["Replay (optionnel)", "IA Evolution (population)"])
 
     with tab1:
         c1, c2, c3 = st.columns([2,1,1])
@@ -138,56 +139,41 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        st.write("Expérimenter une trajectoire IA par évolution (CMA‑ES).")
-        st.caption("Cette démo effectue des évaluations locales seulement quand vous cliquez. Budget défini dans config.yaml.")
-        circuit2 = st.selectbox("Circuit pour l'IA", circuits, index=0, key="c2")
-        event2 = EVENT_MAP.get(circuit2, circuit2)
-        year2 = st.number_input("Année données (pour centerline)", value=year, min_value=2018, max_value=2025, step=1, key="y2")
-        run_id = f"{event2.replace(' ', '_')}_{int(year2)}"
-        step = st.select_slider("Évaluations à exécuter maintenant", options=[50,100,200,400], value=100)
-        colA, colB = st.columns(2)
-        if colA.button("Continuer l'entraînement (checkpoint)"):
-            try:
-                from evolution.cmaes_trainer import optimize_line_cmaes, CMAESConfig
-            except Exception:
-                st.error("Installez la dépendance 'cmaes' dans votre venv.")
-                return
-            with st.spinner("Prépare la piste et lance CMA‑ES (aperçu)…"):
-                # Construire centerline depuis FastF1 (plus sûr) sinon OSM
-                try:
-                    data = load_multicar(int(year2), event2, "Q", 3)
-                    center = data.get("centerline")
-                except Exception:
-                    center = None
-                if center is None or len(center) == 0:
-                    outline = fetch_track_outline(circuit2)
-                    center = outline_to_centerline(resample_linestring(outline, 2000))
-                if center is None or len(center) == 0:
-                    st.error("Impossible d'obtenir la géométrie de piste.")
-                    return
+        st.write("Une seule IA, évaluée par population de 200–400 voitures par génération.")
+        circuit2 = st.selectbox("Circuit", circuits, index=0, key="c2")
+        year2 = st.number_input("Année", value=year, min_value=2018, max_value=2025, step=1, key="y2")
+        center = get_centerline(circuit2, int(year2))
+        if center.size == 0:
+            st.error("Impossible d'obtenir la géométrie de piste.")
+            st.stop()
+        st.plotly_chart(go.Figure(data=[go.Scatter(x=center[:,0], y=center[:,1], mode='lines', name='Piste')]).update_yaxes(scaleanchor='x', scaleratio=1).update_layout(height=400), use_container_width=True)
 
-                evol = cfg.get("evolution", {})
-                total = int(evol.get("evaluations_per_circuit", 400))
-                conf = CMAESConfig(evaluations=step,
-                                   n_ctrl=int(evol.get("n_ctrl_points", 25)),
-                                   track_half_width=float(cfg["optimization"]["track_half_width_m"]))
+        pop_size = st.select_slider("Taille population", options=[200,300,400], value=400)
+        gens = st.select_slider("Générations à exécuter maintenant", options=[1,2,5,10], value=2)
+        n_ctrl = st.select_slider("Points de contrôle", options=[15,25,35], value=25)
+        run_id = f"{circuit2.replace(' ','_')}_{int(year2)}"
+        cA, cB = st.columns([1,1])
+        if cA.button("Exécuter et sauvegarder (checkpoint)"):
+            with st.spinner("Évolution en cours…"):
+                res = run_evolution(center, EvoConfig(population_size=pop_size, generations=gens, n_ctrl=n_ctrl, track_half_width=float(cfg["optimization"]["track_half_width_m"])), run_id=run_id, resume=True)
+                st.session_state["pop_payload"] = {"center": center, "best": res["best_line"], "time": res["best_time"], "hist": res["history"], "gen": res["gen"]}
+        if cB.button("Réinitialiser le run (effacer checkpoint)"):
+            import shutil, pathlib as _pl
+            rd = _pl.Path("data/evolution") / run_id
+            if rd.exists():
+                shutil.rmtree(rd)
+            st.success("Checkpoint supprimé.")
 
-                def sim_fn(xy):
-                    from ml.features.track_processing import curvature
-                    k = curvature(xy)
-                    v_lim = np.sqrt(np.maximum(1e-3, (12.0 * 9.80665) / (np.abs(k) + 1e-6)))
-                    out = simulate_lap(xy, k, v_lim, a_long_max=float(cfg["optimization"]["a_long_max"]))
-                    return out["time_s"], out
-
-                res = optimize_line_cmaes(center, sim_fn, conf, run_id=run_id, resume=True)
-                st.session_state["evo_payload"] = {"center": center, "ia": res["best_line"], "time": res["best_time"], "hist": res["history"]}
-        if colB.button("Réinitialiser le run"):
-            import shutil
-            import pathlib as _pl
-            run_dir = _pl.Path("data/evolution") / run_id
-            if run_dir.exists():
-                shutil.rmtree(run_dir)
-            st.success("Checkpoint supprimé. Vous pouvez relancer l'entraînement.")
+        if "pop_payload" in st.session_state:
+            p = st.session_state["pop_payload"]
+            st.subheader(f"Meilleure trajectoire (gen {int(p['gen'])}) – Temps: {p['time']:.3f} s")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=p["center"][:,0], y=p["center"][:,1], mode="lines", name="Piste", line=dict(color="#777")))
+            fig.add_trace(go.Scatter(x=p["best"][:,0], y=p["best"][:,1], mode="lines", name="IA", line=dict(color="#E91E63", width=4)))
+            fig.update_yaxes(scaleanchor='x', scaleratio=1)
+            fig.update_layout(height=600, legend=dict(orientation='h'))
+            st.plotly_chart(fig, use_container_width=True)
+            st.line_chart(pd.DataFrame({"best": p["hist"]}).cummin())
 
         if "evo_payload" in st.session_state:
             payload = st.session_state["evo_payload"]
@@ -203,3 +189,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# Helpers
+def _centerline_from_fastf1(event_name: str, year: int):
+    """Essaye de construire un centerline à partir des données FastF1 (pos_data ou meilleurs tours)."""
+    try:
+        data = load_multicar(year, event_name, "Q", 3)
+        cl = data.get("centerline")
+        if cl is not None and len(cl):
+            return cl
+    except Exception:
+        pass
+    # Second essai: session R
+    try:
+        data = load_multicar(year, event_name, "R", 3)
+        cl = data.get("centerline")
+        return cl
+    except Exception:
+        return None
