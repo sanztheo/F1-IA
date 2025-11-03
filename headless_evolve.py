@@ -87,8 +87,8 @@ def main():
     ap.add_argument("--pop", type=int, default=400)
     ap.add_argument("--halfwidth", type=float, default=10.0)
     ap.add_argument("--sigma", type=float, default=0.05)
-    ap.add_argument("--horizon", type=int, default=1200)
-    ap.add_argument("--generations", type=int, default=10)
+    ap.add_argument("--horizon", type=int, default=3000)
+    ap.add_argument("--generations", type=int, default=0, help="0 = tourne à l'infini; >0 = nombre de générations")
     ap.add_argument("--workers", type=int, default=max(2, (os.cpu_count() or 4)))
     ap.add_argument("--random_start", action="store_true", help="Spawn agents at random track positions to diversify exploration")
     args = ap.parse_args()
@@ -153,7 +153,9 @@ def main():
     # log CSV
     hist_csv = ck_dir / "history.csv"
 
-    for g in range(args.generations):
+    # boucle d'entraînement: infini si generations<=0
+    gen_start = gen
+    while True:
         print(f"Gen {gen} — evaluating {len(policies)} agents ...", flush=True)
         fits: List[Tuple[float, float, float]] = []
         # Evaluation par paquets pour réduire l'overhead IPC
@@ -225,6 +227,8 @@ def main():
         gen += 1
         _save_ck(ck_dir, gen, policies, best_overall, best_policy)
         print(f"Gen {gen} done. Best lap so far: {best_overall if best_overall < float('inf') else '—'} s", flush=True)
+        if args.generations > 0 and (gen - gen_start) >= args.generations:
+            break
 
 
 if __name__ == "__main__":
