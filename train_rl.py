@@ -165,9 +165,9 @@ def main():
                 break
             dt = viewer.tick(60)
             viewer.clear()
-            viewer.draw_polyline_fast(pre_left, color=(60, 140, 60), width=2, min_px=3.0)
-            viewer.draw_polyline_fast(pre_right, color=(60, 140, 60), width=2, min_px=3.0)
-            viewer.draw_polyline_fast(center, color=(230, 230, 230), width=1, min_px=3.0)
+            viewer.draw_polyline_fast(pre_left, color=(60, 140, 60), width=2, min_px=5.0)
+            viewer.draw_polyline_fast(pre_right, color=(60, 140, 60), width=2, min_px=5.0)
+            viewer.draw_polyline_fast(center, color=(230, 230, 230), width=1, min_px=4.0)
             a = _do_act(best_policy, obs)
             obs, r, done, info = env.step(a)
             viewer.draw_car_rect(env.state["x"], env.state["y"], env.state["th"], length=5.6, width=2.0, color=(80,170,250))

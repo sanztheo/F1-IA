@@ -248,12 +248,29 @@ class TrackEnv:
         # action: [steer(-1..1), throttle(0..1), brake(0..1)]
         steer = float(np.clip(action[0], -1, 1)) * self.params.max_steer
         throttle = float(np.clip(action[1], 0, 1))
-        brake = float(np.clip(action[2], 0, 1))
+        brake_cmd = float(np.clip(action[2], 0, 1))
 
         # physique simple (bicycle approx)
         v = self.state["v"]
         th = self.state["th"]
-        ax = (11.0 * (throttle) - 12.0 * brake) - self.params.drag * v * v  # ~0-100 in ~2.6s, brake up to ~6g equivalent via limit below
+        # Assist freinage anticipé basé sur sur‑vitesse instantanée (avant intégration)
+        pos0 = np.array([self.state["x"], self.state["y"]])
+        try:
+            _, idx0 = self.kdt.query(pos0)
+            la_k0 = fr_look(self.kappa, idx0, max(1, self.lk_count or 8), max(1, self.lk_step))
+            k0 = float(np.mean(np.abs(la_k0))) + 1e-6
+            g = 9.80665
+            a_lat_max0 = min(6.5 * g, (1.8 + 0.00058 * v * v) * g)
+            v_ref0 = float(np.sqrt(a_lat_max0 / k0))
+            over0 = max(0.0, v - v_ref0)
+        except Exception:
+            v_ref0 = v
+            over0 = 0.0
+        # frein auto proportionnel si sur‑vitesse notable; bornage doux
+        brake_auto = float(np.clip(over0 / 12.0, 0.0, 1.0))  # 12 m/s (~43 km/h) -> 1.0
+        brake_eff = max(brake_cmd, 0.7 * brake_auto)
+        throttle_eff = throttle * (1.0 / (1.0 + 0.5 * over0))  # réduit le gaz en sur‑vitesse
+        ax = (11.0 * (throttle_eff) - 12.0 * brake_eff) - self.params.drag * v * v  # ~0-100 in ~2.6s, brake up to ~6g equivalent via limit below
         # lateral accel limit with aero: a_lat_max(v) ≈ (1.8 + k*v^2) * g, k~=0.00058 so that ~5.5g @ 80 m/s
         g = 9.80665
         a_lat_max = min(6.5 * g, (1.8 + 0.00058 * v * v) * g)
@@ -267,7 +284,8 @@ class TrackEnv:
         th = float(_wrap_angle(th + (v * curv_cmd) * self.dt))
         pos = np.array([self.state["x"], self.state["y"]]) + np.array([np.cos(th), np.sin(th)]) * v * self.dt
 
-        self.state.update({"x": float(pos[0]), "y": float(pos[1]), "th": th, "v": v})
+        self.state.update({"x": float(pos[0]), "y": float(pos[1]), "th": th, "v": v,
+                           "throttle": float(throttle_eff), "brake": float(brake_eff)})
 
         # progrès et récompense
         dist, idx = self.kdt.query(pos)
