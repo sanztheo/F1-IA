@@ -58,6 +58,37 @@ def evaluate(center: np.ndarray, half_w: float, params: Dict[str, np.ndarray], m
     return float(total)
 
 
+def _infer_in_dim(pol: Dict[str, np.ndarray]) -> int | None:
+    try:
+        w0 = pol.get("W0")
+        return int(w0.shape[0]) if w0 is not None else None
+    except Exception:
+        return None
+
+
+def _build_env_matching(center: np.ndarray, drs, half_w: float, expected_in: int | None) -> TrackEnv:
+    """Try a set of observation configs so that env.get_obs().size matches policy input dim."""
+    candidates = [
+        dict(obs_mode="frenet", lookahead_k=10, lookahead_step=20, include_rays_in_obs=True, sensor_count=49, sensor_fov_deg=270.0, sensor_max_m=250.0),
+        dict(obs_mode="frenet", lookahead_k=10, lookahead_step=20, include_rays_in_obs=True, sensor_count=33, sensor_fov_deg=270.0, sensor_max_m=250.0),
+        dict(obs_mode="frenet", lookahead_k=10, lookahead_step=20, include_rays_in_obs=False),
+        dict(obs_mode="frenet", lookahead_k=5,  lookahead_step=20, include_rays_in_obs=False),
+        dict(obs_mode="basic",  sensor_count=5,  sensor_fov_deg=120.0, sensor_max_m=50.0, include_rays_in_obs=True),
+        dict(obs_mode="basic",  sensor_count=17, sensor_fov_deg=180.0, sensor_max_m=250.0, include_rays_in_obs=True),
+    ]
+    if expected_in is None:
+        # default to current headless setup
+        return TrackEnv(center, half_width=half_w, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20,
+                        sensor_count=33, sensor_fov_deg=270.0, sensor_max_m=250.0, include_rays_in_obs=True)
+    for cfg in candidates:
+        env = TrackEnv(center, half_width=half_w, drs_zones=drs, **cfg)
+        env.reset(0.0, random_start=True)
+        if int(env.get_obs().size) == expected_in:
+            return env
+    # fallback
+    return TrackEnv(center, half_width=half_w, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Viewer: rejoue la meilleure policy depuis le checkpoint (par défaut)")
     ap.add_argument("--track", default="Circuit de Spa-Francorchamps")
@@ -119,9 +150,9 @@ def main():
         if best_policy is None:
             best_policy = init_mlp((obs_dim, 64, 64, 3), rng)
 
-        # Simulation d'une seule voiture (replay best) – même espace d'observation que le headless
-        env = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs,
-                       obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+        # Simulation d'une seule voiture (replay best) – adapter l'observation au réseau chargé
+        in_dim = _infer_in_dim(best_policy)
+        env = _build_env_matching(center, drs, args.halfwidth, in_dim)
         obs = env.reset(0.0)
         t = 0
         while True:
@@ -136,7 +167,7 @@ def main():
             a = _do_act(best_policy, obs)
             obs, r, done, info = env.step(a)
             viewer.draw_car_rect(env.state["x"], env.state["y"], env.state["th"], length=5.6, width=2.0, color=(80,170,250))
-            rays = env.ray_endpoints(num=17, fov_deg=180.0, max_r=250.0)
+            rays = env.ray_endpoints(num=getattr(env, "sensor_count", 17), fov_deg=getattr(env, "sensor_fov", 180.0), max_r=getattr(env, "sensor_max", 250.0))
             viewer.draw_rays((env.state["x"], env.state["y"]), rays, color=(255,210,90))
             viewer.center_on((env.state["x"], env.state["y"]))
             viewer.draw_text(f"Replay best | lap={info.get('lap',0)} t_lap={info.get('t_lap',0.0):.2f}s | fps~{int(1/max(1e-3,dt))}", (10,10))
