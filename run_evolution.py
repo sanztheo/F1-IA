@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import numpy as np
+import pygame
 
 from tracks.fetch import get_centerline
 from evolution.population import run_evolution, EvoConfig
@@ -26,6 +27,8 @@ def main():
     viewer = Viewer(title=f"Evolution – {args.track} {args.year}")
 
     playing = args.autoplay
+    prev_space = False
+    prev_n = False
     best_line = None
     best_time = None
     hist = []
@@ -46,13 +49,19 @@ def main():
         if best_time is not None:
             viewer.draw_text(f"Best time: {best_time:.3f}s | hist len: {len(hist)}", (10, 34))
 
-        keys = __import__("pygame").pygame.key.get_pressed()
-        if keys[32]:  # SPACE
-            playing = True
-        if keys[110]:  # N key
+        keys = pygame.key.get_pressed()
+        # Edge-detect Space (toggle autoplay)
+        if keys[pygame.K_SPACE] and not prev_space:
+            playing = not playing
+        prev_space = keys[pygame.K_SPACE]
+
+        # Edge-detect N (single step)
+        if keys[pygame.K_n] and not prev_n:
             playing = False
             best_line, best_time, hist = _step(center, args, run_id)
-        if keys[27]:  # ESC
+        prev_n = keys[pygame.K_n]
+
+        if keys[pygame.K_ESCAPE]:
             break
 
         if playing:
@@ -68,4 +77,3 @@ def _step(center: np.ndarray, args, run_id: str):
 
 if __name__ == "__main__":
     main()
-

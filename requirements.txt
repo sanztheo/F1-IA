@@ -10,3 +10,4 @@ networkx>=3.2
 pyproj>=3.6
 pygame>=2.6
 pyyaml>=6.0
+svgpathtools>=1.5.1

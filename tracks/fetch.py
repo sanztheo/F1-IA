@@ -6,7 +6,8 @@ from typing import Optional
 import numpy as np
 
 from .osm_tracks import fetch_track_outline, resample_linestring, outline_to_centerline
-from ..replay.multicar_fastf1 import load_multicar
+from replay.multicar_fastf1 import load_multicar
+from .svg_loader import load_centerline_from_svg
 
 
 def slugify(name: str) -> str:
@@ -33,7 +34,26 @@ def get_centerline(track_name: str, year: int = 2022, cache_dir: str | _pl.Path 
         except Exception:
             pass
 
-    # OSM
+    # 0) SVG spécifique si disponible
+    svg_map = {
+        "circuit de monaco": ("svg/monaco.svg", None),  # (path, path_id)
+    }
+    key = track_name.lower()
+    if key in svg_map:
+        svg_path, path_id = svg_map[key]
+        svg_file = _pl.Path(svg_path)
+        if svg_file.exists():
+            xy = load_centerline_from_svg(svg_file, path_id=path_id, samples=4000)
+            if xy.size:
+                # normaliser l'échelle à la longueur réelle (Monaco 3337 m)
+                target_len_m = 3337.0 if "monaco" in key else float(np.linalg.norm(xy[1:] - xy[:-1], axis=1).sum())
+                cur_len = float(np.linalg.norm(xy[1:] - xy[:-1], axis=1).sum())
+                if cur_len > 0 and target_len_m > 0:
+                    xy = xy * (target_len_m / cur_len)
+                np.save(cache_file, xy)
+                return xy
+
+    # 1) OSM
     try:
         outline = fetch_track_outline(track_name)
         xy = resample_linestring(outline, 2000)
@@ -45,7 +65,7 @@ def get_centerline(track_name: str, year: int = 2022, cache_dir: str | _pl.Path 
     except Exception:
         pass
 
-    # FastF1 fallback (qualifs)
+    # 2) FastF1 fallback (qualifs)
     event_name = _event_guess(track_name)
     for sess in ("Q", "R"):
         try:
@@ -72,4 +92,3 @@ def _event_guess(track_name: str) -> str:
     if "silverstone" in lower:
         return "British Grand Prix"
     return track_name
-

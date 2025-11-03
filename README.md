@@ -26,9 +26,51 @@ Important: aucune installation automatique. Utilisez votre venv et installez `re
 python scripts/fetch_maps.py --year 2022 --track "Circuit de Monaco" --track "Autodromo Nazionale Monza" --track "Circuit de Spa-Francorchamps"
 ```
 
-2) Lancer l’évolution (fenêtre Pygame)
+Ou utiliser ton SVG Monaco et l’échelle réelle 3 337 m:
+```
+python scripts/use_svg.py --svg svg/monaco.svg --length 3337 --out data/tracks/monaco.npy
+```
+
+2) Lancer l’évolution Trackmania‑like (Pygame, voiture visible)
+
+Le plus simple:
+```
+python train_rl.py --track "Circuit de Monaco" --year 2022 --pop 200 --halfwidth 10 --sigma 0.05
+```
+
+Par défaut: circuit « Circuit de Spa‑Francorchamps », année 2022, pop=200, halfwidth=10, sigma=0.05.
+Avec ton SVG Monaco:
+```
+python train_rl.py --track "Circuit de Monaco" --svg svg/monaco.svg --halfwidth 10
+```
+
+- Contrôles (affichés en haut‑gauche dans la fenêtre):
+  - Molette: zoom vers le curseur  •  Drag: déplacer
+  - C / V: caméra suivre / libre
+  - G / H: afficher / cacher les ghosts (points bleus)
+  - T / P: démarrer / pause entraînement
+  - ESC: quitter
+- HUD: génération, meilleur score, FPS, vitesse, progression
+
+Reprise automatique
+- À la fin de chaque génération, un checkpoint est sauvegardé: `data/evolution/<Circuit>_<Année>/rl_checkpoint.npz`.
+- Si tu quittes (même à gen 1), relance `python train_rl.py` et la simulation reprend à la dernière génération sauvegardée (même population).
+
+## Physique / échelles (F1 + Monaco)
+- Voiture (approximations réalistes): L=5.6 m, W=2.0 m, empattement=3.6 m.
+- Vitesse max ~90 m/s (324 km/h). 0–100 km/h ≈ 2.6 s. Freinage jusqu’à ~6 g (clamp lat/long).
+- Accélération latérale avec aéro: `a_lat_max(v) ≈ (1.8 + 0.00058 v²) g`, bornée à 6.5 g.
+- Monaco: longueur 3 337 m; largeur typique ~10 m (option `--halfwidth`).
+
+3) (Option avancée) Évolution d’offsets de trajectoire
 
 ```
+python run_evolution.py --track "Circuit de Monaco" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
+```
+
+Exemples équivalents pour les autres circuits:
+```
+python run_evolution.py --track "Autodromo Nazionale Monza" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
 python run_evolution.py --track "Circuit de Spa-Francorchamps" --year 2022 --pop 400 --gens 2 --nctrl 25 --autoplay
 ```
 
