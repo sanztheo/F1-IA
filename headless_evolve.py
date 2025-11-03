@@ -17,7 +17,7 @@ from rl.checkpoint import save_checkpoint, load_checkpoint
 
 
 def evaluate_once(center: np.ndarray, half_w: float, pol: Dict[str, np.ndarray], max_steps: int, drs: list[tuple[float,float]], random_start: bool) -> Tuple[float, float, float]:
-    env = TrackEnv(center, half_width=half_w, drs_zones=drs)
+    env = TrackEnv(center, half_width=half_w, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
     obs = env.reset(0.0, random_start=random_start)
     total = 0.0
     best_lap = float('inf')
@@ -94,12 +94,15 @@ def main():
         center = get_centerline(args.track, args.year)
 
     rng = np.random.default_rng(0)
-    obs_dim = 3 + 5
+    # probe env to infer observation dimension (frenet mode)
+    _probe = TrackEnv(center, half_width=args.halfwidth, drs_zones=drs, obs_mode="frenet", lookahead_k=10, lookahead_step=20)
+    _probe.reset(0.0, random_start=True)
+    obs_dim = int(_probe.get_obs().size)
     run_id = f"{args.track.replace(' ', '_')}_{args.year}"
     ck_dir = _ensure_dir(f"data/evolution/{run_id}")
     policies, gen, best_overall, best_policy = _load_ck(ck_dir, args.pop, obs_dim, rng)
     if not policies:
-        policies = [init_mlp((obs_dim, 32, 3), rng) for _ in range(args.pop)]
+        policies = [init_mlp((obs_dim, 64, 64, 3), rng) for _ in range(args.pop)]
         # anomalies + heuristiques + bruit d'action (10% chacune)
         k = max(1, args.pop//10)
         for i in range(k):

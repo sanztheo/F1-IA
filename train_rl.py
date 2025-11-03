@@ -11,7 +11,7 @@ import os
 from tracks.fetch import get_centerline
 from rl.track_env import TrackEnv
 from rl.policy import init_mlp, forward, mutate
-from rl.actors import act
+from rl.actors import act as policy_act
 from rl.checkpoint import load_checkpoint
 from viz.pygame_viewer import Viewer
 
@@ -34,8 +34,8 @@ def _load_ck(ck_dir: Path, pop: int, obs_dim: np.random.Generator | None = None)
     return load_checkpoint(ck_dir / "rl_checkpoint.npz", pop)
 
 
-def act(policy: Dict[str, np.ndarray], obs: np.ndarray) -> np.ndarray:
-    return act(policy, obs)
+def _do_act(policy: Dict[str, np.ndarray], obs: np.ndarray) -> np.ndarray:
+    return policy_act(policy, obs)
 
 
 def evaluate(center: np.ndarray, half_w: float, params: Dict[str, np.ndarray], max_steps: int = 2000) -> float:
@@ -44,7 +44,7 @@ def evaluate(center: np.ndarray, half_w: float, params: Dict[str, np.ndarray], m
     total = 0.0
     lap_time = float('inf')
     for _ in range(max_steps):
-        a = act(params, obs)
+        a = _do_act(params, obs)
         obs, r, done, info = env.step(a)
         total += r
         if info.get("lap", 0) >= 1:
@@ -132,7 +132,7 @@ def main():
             viewer.draw_polyline_fast(pre_left, color=(60, 140, 60), width=2, min_px=3.0)
             viewer.draw_polyline_fast(pre_right, color=(60, 140, 60), width=2, min_px=3.0)
             viewer.draw_polyline_fast(center, color=(230, 230, 230), width=1, min_px=3.0)
-            a = act(best_policy, obs)
+            a = _do_act(best_policy, obs)
             obs, r, done, info = env.step(a)
             viewer.draw_car_rect(env.state["x"], env.state["y"], env.state["th"], length=5.6, width=2.0, color=(80,170,250))
             rays = env.ray_endpoints(num=7, fov_deg=120.0, max_r=args.halfwidth*2.0)

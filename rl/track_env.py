@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, Any
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString, LinearRing
+from .frenet import arc_length as fr_arc, tangents_normals as fr_tn, curvature as fr_kappa, lookahead as fr_look
 
 
 def _angle_of(vx: float, vy: float) -> float:
@@ -27,23 +28,20 @@ class CarParams:
 
 
 class TrackEnv:
-    def __init__(self, centerline: np.ndarray, half_width: float = 6.0, dt: float = 1/60.0, drs_zones: list[tuple[float,float]] | None = None):
+    def __init__(self, centerline: np.ndarray, half_width: float = 6.0, dt: float = 1/60.0, drs_zones: list[tuple[float,float]] | None = None,
+                 obs_mode: str = "basic", lookahead_k: int = 0, lookahead_step: int = 10):
         assert centerline.ndim == 2 and centerline.shape[1] == 2
         self.center = centerline.astype(float)
         self.half_w = float(half_width)
         self.dt = float(dt)
         # pré-calculs
-        self.s = np.zeros(len(self.center))
-        ds = np.linalg.norm(np.diff(self.center, axis=0), axis=1)
-        self.s[1:] = np.cumsum(ds)
+        self.s = fr_arc(self.center)
         self.length = float(self.s[-1])
-        dx = np.gradient(self.center[:, 0])
-        dy = np.gradient(self.center[:, 1])
-        self.tang = np.stack([dx, dy], axis=1)
-        n = np.stack([-dy, dx], axis=1)
-        n_norm = np.linalg.norm(n, axis=1, keepdims=True) + 1e-9
-        self.normals = n / n_norm
-        self.tang_angles = np.array([_angle_of(t[0], t[1]) for t in self.tang])
+        self.tang, self.normals, self.tang_angles = fr_tn(self.center)
+        self.kappa = fr_kappa(self.center)
+        self.obs_mode = obs_mode
+        self.lk_count = int(max(0, lookahead_k))
+        self.lk_step = int(max(1, lookahead_step))
         self.kdt = cKDTree(self.center)
         # bords de piste (robustes via offsets shapely, évite les "boîtes" aux virages serrés)
         try:
@@ -120,18 +118,23 @@ class TrackEnv:
         self._gate_prev = snap.get("_gate_prev", None)
 
     def get_obs(self) -> np.ndarray:
-        # erreurs par rapport au centerline
         pos = np.array([self.state["x"], self.state["y"]])
-        dist, idx = self.kdt.query(pos)
+        _, idx = self.kdt.query(pos)
         n = self.normals[idx]
         lat_err = float(np.dot(pos - self.center[idx], n))
         head_err = _wrap_angle(self.state["th"] - self.tang_angles[idx])
         speed = float(self.state["v"]) / self.params.max_speed
-        # 5 capteurs rudimentaires (raycasts approchés)
-        rays = np.deg2rad(np.array([-60, -30, 0, 30, 60], dtype=float))
-        dists = [self._raycast(pos, self.state["th"] + r, self.half_w*2.0) for r in rays]
-        obs = np.array([lat_err / self.half_w, head_err / np.pi, speed] + [d/(self.half_w*2.0) for d in dists], dtype=float)
-        return obs
+        if self.obs_mode == "frenet":
+            vec = [lat_err / self.half_w, head_err / np.pi, speed]
+            if self.lk_count > 0:
+                la = fr_look(self.kappa, idx, self.lk_count, max(1, self.lk_step))
+                # normaliser grossièrement la courbure (échelle de quelques 1/m)
+                vec += (la * 10.0).tolist()
+            return np.array(vec, dtype=float)
+        else:
+            rays = np.deg2rad(np.array([-60, -30, 0, 30, 60], dtype=float))
+            dists = [self._raycast(pos, self.state["th"] + r, self.half_w*2.0) for r in rays]
+            return np.array([lat_err / self.half_w, head_err / np.pi, speed] + [d/(self.half_w*2.0) for d in dists], dtype=float)
 
     def ray_endpoints(self, num: int = 5, fov_deg: float = 120.0, max_r: float | None = None):
         """Retourne les points finaux des raycasts à partir de la position/heading courants.
