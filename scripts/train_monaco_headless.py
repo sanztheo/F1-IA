@@ -28,6 +28,8 @@ if str(ROOT) not in sys.path:
 from tracks.svg_loader import load_centerline_from_svg
 from rl.track_env import TrackEnv
 from rl.policy import init_mlp, mutate
+from rl.actors import act
+from rl.checkpoint import save_checkpoint, load_checkpoint
 
 
 # Constantes simples
@@ -42,29 +44,6 @@ WORKERS = 8
 HIDDEN = (64, 64)  # MLP plus large pour de meilleures perfs
 
 
-def act(policy: Dict[str, np.ndarray], obs: np.ndarray) -> np.ndarray:
-    if policy.get("__fullsend__"):
-        return np.array([0.0, 1.0, 0.0], dtype=np.float32)
-    if policy.get("__pursuit__"):
-        # Heuristique PD simple pour suivre la ligne
-        lat_n = float(obs[0])
-        head_n = float(obs[1])
-        k_lat, k_head = 0.8, 1.2
-        steer = np.clip(-(k_lat * lat_n + k_head * head_n), -1.0, 1.0)
-        throttle = float(np.clip(0.9 - 0.4 * abs(head_n) - 0.2 * abs(lat_n), 0.0, 1.0))
-        a = np.array([steer, throttle, 0.0], dtype=np.float32)
-        if policy.get("__noisy__"):
-            a += np.array([np.random.normal(0, 0.05), np.random.normal(0, 0.05), 0.0], dtype=np.float32)
-            a[0] = float(np.clip(a[0], -1.0, 1.0))
-            a[1] = float(np.clip(a[1], 0.0, 1.0))
-        return a
-    from rl.policy import forward
-    a = forward(policy, obs)
-    if policy.get("__noisy__"):
-        a += np.array([np.random.normal(0, 0.05), np.random.normal(0, 0.05), 0.0], dtype=np.float32)
-        a[0] = float(np.clip(a[0], -1.0, 1.0))
-        a[1] = float(np.clip(a[1], 0.0, 1.0))
-    return a
 
 
 def evaluate_once(center: np.ndarray, half_w: float, pol: Dict[str, np.ndarray], max_steps: int, drs: list[tuple[float,float]], random_start: bool = True) -> Tuple[float, float, float]:
@@ -100,32 +79,11 @@ def _ensure_dir(p: Path | str) -> Path:
 
 
 def _save_ck(ck_dir: Path, gen: int, policies: List[Dict[str, np.ndarray]], best_time: float, best_policy: Dict[str, np.ndarray] | None = None) -> None:
-    arr = np.array(policies, dtype=object)
-    if best_policy is not None:
-        np.savez(ck_dir / "rl_checkpoint.npz", gen=np.array([gen]), best_time=np.array([best_time]), policies=arr, best_policy=np.array([best_policy], dtype=object), allow_pickle=True)
-    else:
-        np.savez(ck_dir / "rl_checkpoint.npz", gen=np.array([gen]), best_time=np.array([best_time]), policies=arr, allow_pickle=True)
+    save_checkpoint(ck_dir / "rl_checkpoint.npz", gen, policies, best_time, best_policy)
 
 
 def _load_ck(ck_dir: Path, pop: int) -> Tuple[List[Dict[str, np.ndarray]], int, float, Dict[str, np.ndarray] | None]:
-    f = ck_dir / "rl_checkpoint.npz"
-    if not f.exists():
-        return [], 0, float('inf'), None
-    try:
-        z = np.load(f, allow_pickle=True)
-        gen = int(z.get("gen", np.array([0]))[0])
-        best_time = float(z.get("best_time", np.array([float('inf')]))[0])
-        pols = z["policies"].tolist()
-        best_pol = None
-        if "best_policy" in z:
-            bp = z["best_policy"].tolist()
-            if isinstance(bp, list) and bp:
-                best_pol = bp[0]
-        if not isinstance(pols, list) or not pols:
-            return [], gen, best_time, best_pol
-        return pols[:pop], gen, best_time, best_pol
-    except Exception:
-        return [], 0, float('inf'), None
+    return load_checkpoint(ck_dir / "rl_checkpoint.npz", pop)
 
 
 def load_centerline_monaco() -> np.ndarray:

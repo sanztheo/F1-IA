@@ -11,6 +11,8 @@ import os
 from tracks.fetch import get_centerline
 from rl.track_env import TrackEnv
 from rl.policy import init_mlp, forward, mutate
+from rl.actors import act
+from rl.checkpoint import load_checkpoint
 from viz.pygame_viewer import Viewer
 
 # ---------- helpers (checkpointing + action policy) ----------
@@ -29,31 +31,11 @@ def _save_ck(ck_dir: Path, gen: int, policies: List[Dict[str, np.ndarray]], best
 
 
 def _load_ck(ck_dir: Path, pop: int, obs_dim: np.random.Generator | None = None) -> Tuple[List[Dict[str, np.ndarray]], int, float, Dict[str, np.ndarray] | None]:
-    f = ck_dir / "rl_checkpoint.npz"
-    if not f.exists():
-        return [], 0, float('inf'), None
-    try:
-        z = np.load(f, allow_pickle=True)
-        gen = int(z["gen"][0]) if "gen" in z else 0
-        best_time = float(z.get("best_time", np.array([float('inf')]))[0])
-        pols = z["policies"].tolist()
-        best_pol = None
-        if "best_policy" in z:
-            bp = z["best_policy"].tolist()
-            if isinstance(bp, list) and bp:
-                best_pol = bp[0]
-        if not isinstance(pols, list) or not pols:
-            return [], gen, best_time, best_pol
-        return pols[:pop], gen, best_time, best_pol
-    except Exception:
-        return [], 0, float('inf'), None
+    return load_checkpoint(ck_dir / "rl_checkpoint.npz", pop)
 
 
 def act(policy: Dict[str, np.ndarray], obs: np.ndarray) -> np.ndarray:
-    # anomalies: full-send policy (always throttle, no brake)
-    if policy.get("__fullsend__"):
-        return np.array([0.0, 1.0, 0.0], dtype=np.float32)
-    return forward(policy, obs)
+    return act(policy, obs)
 
 
 def evaluate(center: np.ndarray, half_w: float, params: Dict[str, np.ndarray], max_steps: int = 2000) -> float:
