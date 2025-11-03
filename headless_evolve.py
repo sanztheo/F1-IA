@@ -104,6 +104,11 @@ def main():
     else:
         center = get_centerline(args.track, args.year)
 
+    # DRS zones défaut (défini AVANT d'instancier un env)
+    def default_drs(track_name: str) -> list[tuple[float, float]]:
+        return [(0.00, 0.06)] if 'monaco' in track_name.lower() else []
+    drs = default_drs(args.track)
+
     rng = np.random.default_rng(0)
     # probe env to infer observation dimension (frenet mode)
     _probe = TrackEnv(
@@ -143,10 +148,7 @@ def main():
         if best_overall < min_lap_guard:
             best_overall = float('inf')
 
-    # DRS zones défaut
-    def default_drs(track_name: str) -> list[tuple[float,float]]:
-        return [(0.00, 0.06)] if 'monaco' in track_name.lower() else []
-    drs = default_drs(args.track)
+    # drs déjà défini ci‑dessus
 
     # log CSV
     hist_csv = ck_dir / "history.csv"
