@@ -29,7 +29,9 @@ class CarParams:
 
 class TrackEnv:
     def __init__(self, centerline: np.ndarray, half_width: float = 6.0, dt: float = 1/60.0, drs_zones: list[tuple[float,float]] | None = None,
-                 obs_mode: str = "basic", lookahead_k: int = 0, lookahead_step: int = 10):
+                 obs_mode: str = "basic", lookahead_k: int = 0, lookahead_step: int = 10,
+                 sensor_count: int = 17, sensor_fov_deg: float = 180.0, sensor_max_m: float = 250.0,
+                 include_rays_in_obs: bool = False):
         assert centerline.ndim == 2 and centerline.shape[1] == 2
         self.center = centerline.astype(float)
         self.half_w = float(half_width)
@@ -42,6 +44,11 @@ class TrackEnv:
         self.obs_mode = obs_mode
         self.lk_count = int(max(0, lookahead_k))
         self.lk_step = int(max(1, lookahead_step))
+        # capteurs raycasts (pour anticipation)
+        self.sensor_count = int(max(1, sensor_count))
+        self.sensor_fov = float(sensor_fov_deg)
+        self.sensor_max = float(sensor_max_m)
+        self.include_rays_in_obs = bool(include_rays_in_obs)
         self.kdt = cKDTree(self.center)
         # bords de piste (robustes via offsets shapely, évite les "boîtes" aux virages serrés)
         try:
@@ -128,13 +135,16 @@ class TrackEnv:
             vec = [lat_err / self.half_w, head_err / np.pi, speed]
             if self.lk_count > 0:
                 la = fr_look(self.kappa, idx, self.lk_count, max(1, self.lk_step))
-                # normaliser grossièrement la courbure (échelle de quelques 1/m)
                 vec += (la * 10.0).tolist()
+            if self.include_rays_in_obs:
+                rays = self.ray_endpoints(num=self.sensor_count, fov_deg=self.sensor_fov, max_r=self.sensor_max)
+                d = np.linalg.norm(rays - np.array([self.state["x"], self.state["y"]]), axis=1)
+                vec += (d / self.sensor_max).tolist()
             return np.array(vec, dtype=float)
         else:
-            rays = np.deg2rad(np.array([-60, -30, 0, 30, 60], dtype=float))
-            dists = [self._raycast(pos, self.state["th"] + r, self.half_w*2.0) for r in rays]
-            return np.array([lat_err / self.half_w, head_err / np.pi, speed] + [d/(self.half_w*2.0) for d in dists], dtype=float)
+            # Basic mode: multiple rays in front
+            dists = self._raycast_fan(self.sensor_count, self.sensor_fov, self.sensor_max)
+            return np.array([lat_err / self.half_w, head_err / np.pi, speed] + (dists / self.sensor_max).tolist(), dtype=float)
 
     def ray_endpoints(self, num: int = 5, fov_deg: float = 120.0, max_r: float | None = None):
         """Retourne les points finaux des raycasts à partir de la position/heading courants.
@@ -143,7 +153,7 @@ class TrackEnv:
         - fov_deg: champ de vision total en degrés (centré sur l'angle de la voiture)
         - max_r: portée max (défaut: 2*half_width)
         """
-        max_r = max_r or (2.0 * self.half_w)
+        max_r = max_r or self.sensor_max
         pos = np.array([self.state["x"], self.state["y"]])
         th0 = self.state["th"]
         if num <= 1:
@@ -154,7 +164,7 @@ class TrackEnv:
         for a in angles:
             ang = th0 + a
             # marche jusqu'au mur (sortie de piste) ou portée max
-            step = self.half_w / 20.0
+            step = max(0.5, self.half_w / 10.0)  # ~0.5–1m granularity for long rays
             r = 0.0
             hit = pos.copy()
             while r < max_r:
@@ -166,6 +176,28 @@ class TrackEnv:
                 r += step
             endpoints.append(hit)
         return np.asarray(endpoints)
+
+    def _raycast_fan(self, num: int, fov_deg: float, max_r: float) -> np.ndarray:
+        pos = np.array([self.state["x"], self.state["y"]])
+        th0 = self.state["th"]
+        if num <= 1:
+            angles = np.array([0.0])
+        else:
+            angles = np.linspace(-np.deg2rad(fov_deg)/2.0, np.deg2rad(fov_deg)/2.0, num)
+        dists = []
+        step = max(0.5, self.half_w / 10.0)
+        for a in angles:
+            ang = th0 + a
+            r = 0.0
+            last_ok = 0.0
+            while r < max_r:
+                probe = pos + np.array([np.cos(ang), np.sin(ang)]) * r
+                if not self._on_track_point(probe):
+                    break
+                last_ok = r
+                r += step
+            dists.append(last_ok)
+        return np.asarray(dists, dtype=float)
 
     def _raycast(self, pos: np.ndarray, ang: float, max_r: float) -> float:
         # avance petit à petit jusqu'à sortir de la piste
@@ -285,8 +317,20 @@ class TrackEnv:
         if drs:
             a_lat_max *= 0.9
         head_pen_factor = 0.7 if drs else 1.0
-        # pénalités stabilité
+        # pénalités stabilité + anticipation freinage (v_ref basé sur la courbure en avant)
         pen = 0.01 * abs(lat_err) + 0.005 * abs(head_err) * head_pen_factor + 0.0005 * v * v
+        try:
+            # moyenne de courbure lookahead → vitesse de référence
+            _, idx_a = self.kdt.query(pos)
+            la_k = fr_look(self.kappa, idx_a, max(1, self.lk_count or 8), max(1, self.lk_step))
+            k_abs = float(np.mean(np.abs(la_k))) + 1e-6
+            g = 9.80665
+            a_lat_max = min(6.5 * g, (1.8 + 0.00058 * v * v) * g)
+            v_ref = float(np.sqrt(a_lat_max / k_abs))
+            over = max(0.0, v - v_ref)
+            pen += 0.0015 * over * over
+        except Exception:
+            pass
         done = not on
         # exposer état pour HUD et progression robuste
         self.state["throttle"] = throttle

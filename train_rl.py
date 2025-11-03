@@ -135,7 +135,7 @@ def main():
             a = _do_act(best_policy, obs)
             obs, r, done, info = env.step(a)
             viewer.draw_car_rect(env.state["x"], env.state["y"], env.state["th"], length=5.6, width=2.0, color=(80,170,250))
-            rays = env.ray_endpoints(num=7, fov_deg=120.0, max_r=args.halfwidth*2.0)
+            rays = env.ray_endpoints(num=17, fov_deg=180.0, max_r=250.0)
             viewer.draw_rays((env.state["x"], env.state["y"]), rays, color=(255,210,90))
             viewer.center_on((env.state["x"], env.state["y"]))
             viewer.draw_text(f"Replay best | lap={info.get('lap',0)} t_lap={info.get('t_lap',0.0):.2f}s | fps~{int(1/max(1e-3,dt))}", (10,10))
