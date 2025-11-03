@@ -18,6 +18,7 @@ class Viewer:
         self.follow = False
         self.bg = (15, 17, 22)
         self.fg = (220, 220, 220)
+        self.last_click = None  # type: Tuple[int,int] | None
 
     def world_to_screen(self, xy: np.ndarray) -> np.ndarray:
         if xy.size == 0:
@@ -117,6 +118,8 @@ class Viewer:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse = pygame.mouse.get_pos()
+                if event.button == 1:
+                    self.last_click = mouse
                 world_before = self.screen_to_world(mouse)
                 if event.button == 4:  # wheel up
                     self.scale *= 1.15
@@ -130,6 +133,11 @@ class Viewer:
                     rel = np.array(event.rel, dtype=float)
                     self.offset += rel
         return running, d_off[0], d_scale
+
+    def pop_click(self):
+        c = self.last_click
+        self.last_click = None
+        return c
 
     def tick(self, fps: int = 60) -> float:
         return self.clock.tick(fps) / 1000.0

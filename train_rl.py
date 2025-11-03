@@ -157,6 +157,8 @@ def main():
         env = _build_env_matching(center, drs, args.halfwidth, in_dim)
         obs = env.reset(0.0)
         t = 0
+        # zone bouton "Dernière gen"
+        btn_w, btn_h = 160, 26
         while True:
             running, _, _ = viewer.handle_events()
             if not running:
@@ -184,6 +186,23 @@ def main():
             viewer.draw_text(hud1, (10,10))
             viewer.draw_text(hud2, (10,30))
             viewer.draw_text("ESC pour quitter", (10,50))
+            # dessiner bouton Dernière gen (coin droit)
+            bx = int(viewer.screen_size[0] - btn_w - 10)
+            by = 10
+            import pygame as _pg
+            _pg.draw.rect(viewer.screen, (40, 90, 160), (bx, by, btn_w, btn_h))
+            _pg.draw.rect(viewer.screen, (230, 230, 230), (bx, by, btn_w, btn_h), width=1)
+            viewer.draw_text("Dernière gen", (bx + 12, by + 4))
+            click = viewer.pop_click()
+            if click is not None:
+                cx, cy = click
+                if bx <= cx <= bx + btn_w and by <= cy <= by + btn_h:
+                    # recharger checkpoint Monaco_SVG
+                    pols, gen_new, best_time, best_pol = _load_ck(ck_dir, args.pop)
+                    if best_pol is not None:
+                        best_policy = best_pol
+                        gen = gen_new
+                        viewer.draw_text("Reload OK", (bx, by + btn_h + 8))
             if done and info.get("lap",0) < 1:
                 # si sortie de piste: réinitialiser pour continuer la démo
                 obs = env.reset(0.0, random_start=True)
